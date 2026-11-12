@@ -1,27 +1,30 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Ghost Macro Recorder logo" width="220">
-</p>
-
-<h1 align="center">Ghost Macro Recorder</h1>
-
-<p align="center"><b>Record Once. Run in the Background.</b></p>
-
-<p align="center">
-  A Windows macro recorder that replays your clicks and keystrokes <i>inside one app window</i> —
-  while you keep using your mouse and keyboard for everything else.
+  <img src="docs/art/banner.svg" alt="Ghost Macro Recorder — Record once. Run in the background." width="100%">
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>⬇ Download for Windows</b></a>
+  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest">
+    <img src="https://img.shields.io/badge/Download_for_Windows-Setup.exe-ffb020?style=for-the-badge&logo=windows&logoColor=white&labelColor=14161a" alt="Download for Windows">
+  </a>
 </p>
-
----
 
 <p align="center">
-  <img src="docs/screenshot-dark.png" alt="Ghost Macro Recorder — dark mode" width="900">
+  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest"><img src="https://img.shields.io/github/v/release/mohnishkrishna-saikumar-mk9/GhostMacroRecorder?style=flat-square&color=ffb020&label=version" alt="Latest version"></a>
+  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases"><img src="https://img.shields.io/github/downloads/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/total?style=flat-square&color=3ddc97&label=downloads" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-4cc9f0?style=flat-square&logo=windows&logoColor=white" alt="Windows 10 and 11">
+  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/release.yml?style=flat-square&label=build" alt="Build status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b388ff?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/100%25-offline-868d98?style=flat-square" alt="100% offline">
 </p>
 
-## Why "Ghost"?
+<p align="center">
+  <a href="#-what-it-can-do"><img src="https://img.shields.io/badge/Features-1b1e23?style=for-the-badge&logo=sparkfun&logoColor=ffb020" alt="Features"></a>
+  <a href="#-download--install"><img src="https://img.shields.io/badge/Install-1b1e23?style=for-the-badge&logo=windows&logoColor=ffb020" alt="Install"></a>
+  <a href="#-how-to-use"><img src="https://img.shields.io/badge/How_to_use-1b1e23?style=for-the-badge&logo=readthedocs&logoColor=ffb020" alt="How to use"></a>
+  <a href="#-privacy"><img src="https://img.shields.io/badge/Privacy-1b1e23?style=for-the-badge&logo=shieldsdotio&logoColor=ffb020" alt="Privacy"></a>
+</p>
+
+## 👻 Why "Ghost"?
 
 Most macro tools take over your computer while they run: the cursor jumps around, keys get typed into
 whatever window is in front, and you have to sit and wait.
@@ -30,31 +33,34 @@ Ghost Macro Recorder works like a ghost in the background. It sends the recorded
 scrolls and key presses **directly to the window you picked**, without moving your real mouse or
 stealing keyboard focus. Start a macro, then switch to another app and carry on working.
 
-## Features
+## ✨ What it can do
 
-- **Background playback** — replays input straight into the target window (Win32 messages), so your mouse and keyboard stay free.
-- **Foreground mode** — a classic "real mouse & keyboard" mode for apps that ignore background input.
-- **Pick any window** — search the list of open windows, or click *Pick window* and switch to your app within 3 seconds.
-- **This window only** — only input inside the chosen app is recorded; everything else you do is ignored.
-- **Live tape view** — every click, key, scroll and mouse move shows up as a colour-coded tick while recording, with a playhead during playback.
-- **Repeat count _or_ run for a set time** — loop a macro N times, forever, or for an exact duration like `1:00`, `90s`, `5m` or `1h`. A live estimate shows how many loops and steps will fit.
-- **Speed control** — 0.25× to 5×, plus an adjustable wait between loops.
-- **Countdown** before playing (3 s / 5 s) so you have time to switch to your app.
-- **Humanize** — adds a small random variation to every pause so replays don't run at robot-perfect intervals.
-- **When it's done** — show a Windows notification or play a sound when a long run finishes.
-- **Step editor** — review every recorded step, delete selected steps, or trim mouse moves in one click.
-- **＋ New, Save & Open** — macros are `.json` files. If you start a new recording, open another file, clear or quit while the current macro has unsaved changes, Ghost asks whether to save it first (the title bar shows • when there are unsaved changes).
-- **Global hotkeys** — `F9` record/stop, `F10` play/stop, `F12` stop everything, `Ctrl + Alt + T` target the app you're in. Change any of them by clicking a box and pressing a key or combo. If another program already owns a key, Ghost says so and offers a free one in one click.
-- **System tray** — keeps running next to the clock when closed; the tray ghost shows a red dot while recording and a green dot while playing. Opening the app again just brings the existing window back.
-- **Start with Windows** (quietly in the tray), **Always on top**, and a one-click **Open macros folder**.
-- **Every setting explained in plain words**, and **Light, Dark or System theme.**
-- **Scales coordinates** if the target window is resized between recording and playback.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/art/feature-deck.svg" alt="Record and play like a tape deck" width="100%"></td>
+    <td width="50%"><img src="docs/art/feature-ghost.svg" alt="Plays in the background" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/art/feature-target.svg" alt="Point it at any app" width="100%"></td>
+    <td><img src="docs/art/feature-repeat.svg" alt="Repeat or run for a set time" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/art/feature-timer.svg" alt="Countdown and human timing" width="100%"></td>
+    <td><img src="docs/art/feature-keys.svg" alt="Hotkeys that work anywhere" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/art/feature-steps.svg" alt="See and edit every step" width="100%"></td>
+    <td><img src="docs/art/feature-app.svg" alt="Made for everyday use" width="100%"></td>
+  </tr>
+</table>
 
-<p align="center">
-  <img src="docs/screenshot-light.png" alt="Ghost Macro Recorder — light mode" width="720">
-</p>
+<details>
+  <summary><b>📸 See the actual app</b></summary>
+  <br>
+  <p align="center"><img src="docs/screenshot-dark.png" alt="Ghost Macro Recorder main window" width="900"></p>
+</details>
 
-## Download & install
+## ⬇ Download & install
 
 1. Go to the [**latest release**](../../releases/latest) and download **`GhostMacroRecorder-Setup-x.y.z.exe`**.
 2. Run the installer and follow the steps.
@@ -81,7 +87,7 @@ No Python or anything else needs to be installed separately.
 > Click **More info → Run anyway**. On PCs with **Smart App Control** turned on, unsigned apps are
 > blocked entirely — run it from source instead (see below).
 
-## How to use
+## ▶ How to use
 
 1. **Pick a target** — choose the app from the *Target* list (type to search), or press **Pick window** and switch to it.
 2. **Record** — press **● REC** (or `F9`) and do your clicks and typing in that window. Press again to stop.
@@ -92,12 +98,12 @@ No Python or anything else needs to be installed separately.
 ### Tips
 
 - If an app ignores background clicks (some Chromium, UWP or game windows), switch *Settings → Play* to **Foreground**.
-- If a hotkey shows *taken by another app* in *Settings → Keys*, click it and pick a different key.
+- If a hotkey shows *taken by another app* in *Settings → Keys*, click the warning to switch to a free key.
 - If the target app runs **as Administrator**, run Ghost Macro Recorder as Administrator too — Windows blocks
   normal apps from sending input to elevated ones.
 - Turn on **Record mouse movement** (*Settings → Record*) only when you need hover/drag paths — it makes macros much bigger.
 
-## Privacy
+## 🔒 Privacy
 
 Ghost Macro Recorder runs **100% offline**. It has no network access, analytics or telemetry. It only listens to
 input **while you are recording**, skips password fields and Windows security prompts, and only writes macro files
@@ -138,9 +144,13 @@ src/player.py            playback engine (repeat / timed runs)
 src/win32_backend.py     Win32 background & foreground input
 src/hotkeys.py           global hotkeys
 src/tray.py              system tray icon
+src/icons.py             crisp per-DPI window & tray icons
+src/autostart.py         start with Windows
+src/single_instance.py   one running copy at a time
 src/models.py            macro & settings data
 installer/               Inno Setup installer script
 scripts/generate_icon.py builds the app icons from assets/logo_source.png
+scripts/make_readme_art.py draws the README banner and feature cards
 tests/                   pytest suite
 ```
 
