@@ -8,6 +8,7 @@ A playhead sweeps the tape during playback.
 
 from __future__ import annotations
 
+import ctypes
 import os
 from pathlib import Path
 import threading
@@ -27,6 +28,7 @@ from src.app_paths import (
     get_settings_path,
     get_user_data_dir,
 )
+from src.icons import apply_window_icons
 from src.hotkeys import GlobalHotkeyManager, canonical_hotkey, display_hotkey
 from src.models import AppSettings, Macro, MacroEvent, WindowTarget
 from src.player import MacroPlayer
@@ -68,6 +70,7 @@ C = {
     "warn": ("#c77700", "#f5a524"),
     "scroll": ("#bdb5a6", "#3d434d"),
     "hint": ("#5d584f", "#a2a9b4"),
+    "seg": ("#e9e4da", "#202329"),
 }
 
 # Tape lanes: (lane key, label, (light, dark) color, event types)
@@ -224,6 +227,11 @@ class TargetPicker(ctk.CTkFrame):
         x, y = self.winfo_rootx(), self.winfo_rooty() + self.winfo_height() + int(4 * scale)
 
         pop = ctk.CTkToplevel(self.app)
+        try:
+            # Claim the icon first, otherwise CustomTkinter swaps in its own logo after 200 ms
+            pop.iconbitmap(str(get_resource_path("assets/app.ico")))
+        except Exception:
+            pass
         pop.withdraw()
         pop.overrideredirect(True)
         pop.attributes("-topmost", True)
@@ -405,6 +413,7 @@ def fmt_duration(seconds: float) -> str:
 
 
 class MacroRecorderApp(ctk.CTk):
+    MIN_W = 980  # logical px
     """Main desktop application window."""
 
     def __init__(self) -> None:
@@ -412,6 +421,7 @@ class MacroRecorderApp(ctk.CTk):
         self.settings = AppSettings.load(SETTINGS_PATH)
         ctk.set_appearance_mode(self.settings.appearance_mode)
         ctk.set_default_color_theme("blue")
+        self._apply_theme_defaults()
 
         self.title(f"{APP_NAME} v{APP_VERSION}")
         # Fit smaller / high-DPI screens: never open larger than ~92% of the work area.
@@ -420,14 +430,17 @@ class MacroRecorderApp(ctk.CTk):
         screen_h = int(self.winfo_screenheight() / scale)
         win_w, win_h = min(1160, int(screen_w * 0.92)), min(760, int(screen_h * 0.86))
         self.geometry(f"{win_w}x{win_h}+{max(0, (screen_w - win_w) // 2)}+{max(0, (screen_h - win_h) // 3)}")
-        self.minsize(980, 660)
+        self.minsize(self.MIN_W, 560)
         self.configure(fg_color=C["bg"])
         icon_path = get_resource_path("assets/app.ico")
         if icon_path.exists():
             try:
-                self.iconbitmap(str(icon_path))
+                self.iconbitmap(str(icon_path))  # also stops CustomTkinter's own logo
             except Exception:
                 pass
+        # Exact-size icons for title bar / taskbar / Alt+Tab (Tk alone gives a blurry one)
+        self.after(50, self._apply_icons)
+        self.bind("<Map>", lambda e: self._apply_icons() if e.widget is self else None, add="+")
 
         families = set(tkfont.families(self))
         self.mono = next(
@@ -486,6 +499,7 @@ class MacroRecorderApp(ctk.CTk):
         )
 
         self._build_ui()
+        self.after(400, self._fit_min_size)
         self.lbl_engine_help.configure(text=self.ENGINE_HELP[self.mode_var.get()])
         self.lbl_limit_help.configure(text=self.LIMIT_HELP[self.limit_var.get()])
         self._apply_treeview_style()
@@ -581,7 +595,8 @@ class MacroRecorderApp(ctk.CTk):
         if logo_path.exists():
             from PIL import Image
 
-            self._logo_img = ctk.CTkImage(Image.open(logo_path), size=(40, 40))
+            ui_logo = get_resource_path("assets/icon_ui.png")
+            self._logo_img = ctk.CTkImage(Image.open(ui_logo if ui_logo.exists() else logo_path), size=(40, 40))
             ctk.CTkLabel(brand, text="", image=self._logo_img).pack(side="left", padx=(0, 10))
         words = ctk.CTkFrame(brand, fg_color="transparent")
         words.pack(side="left")
@@ -791,9 +806,9 @@ class MacroRecorderApp(ctk.CTk):
         seg.configure(
             selected_color=C["text"],
             selected_hover_color=C["text"],
-            unselected_color=C["panel_hi"],
+            unselected_color=C["seg"],
             unselected_hover_color=C["ghost_hover"],
-            fg_color=C["line"],
+            fg_color=C["seg"],  # same as the buttons: one clean pill, no box-in-box or edge line
         )
         # CTk uses one text color for all segments; we repaint per-segment so the
         # selected (inverted) segment stays readable in both light and dark mode.
@@ -905,10 +920,10 @@ class MacroRecorderApp(ctk.CTk):
             fg_color=C["panel"],
             border_width=1,
             border_color=C["line"],
-            segmented_button_fg_color=C["line"],
+            segmented_button_fg_color=C["seg"],
             segmented_button_selected_color=C["text"],
             segmented_button_selected_hover_color=C["text"],
-            segmented_button_unselected_color=C["panel_hi"],
+            segmented_button_unselected_color=C["seg"],
             segmented_button_unselected_hover_color=C["ghost_hover"],
             text_color=C["text"],
             command=lambda: self._repaint_segment_text(self.tabs._segmented_button),  # noqa: SLF001
@@ -2028,6 +2043,61 @@ class MacroRecorderApp(ctk.CTk):
         self.state("normal")
         self.lift()
         self.focus_force()
+        self._apply_icons()
+
+    @staticmethod
+    def _apply_theme_defaults() -> None:
+        """Point CustomTkinter's built-in defaults at our palette.
+
+        Some CTk widgets paint a pixel or two with their theme default (e.g. a 1px
+        gray line at the end of segmented buttons). With the defaults set to our
+        own colours, nothing foreign can show through.
+        """
+        theme = ctk.ThemeManager.theme
+        seg = theme["CTkSegmentedButton"]
+        seg["fg_color"] = list(C["seg"])
+        seg["unselected_color"] = list(C["seg"])
+        seg["unselected_hover_color"] = list(C["ghost_hover"])
+        seg["selected_color"] = list(C["text"])
+        seg["selected_hover_color"] = list(C["text"])
+        seg["text_color"] = list(C["text"])
+        theme["CTkFrame"]["border_color"] = list(C["line"])
+        theme["CTkFrame"]["top_fg_color"] = list(C["panel"])
+        theme["CTk"]["fg_color"] = list(C["bg"])
+        theme["CTkToplevel"]["fg_color"] = list(C["bg"])
+        theme["CTkScrollbar"]["button_color"] = list(C["scroll"])
+        theme["CTkScrollbar"]["button_hover_color"] = list(C["accent"])
+
+    def _fit_min_size(self) -> None:
+        """Never let the window get so short that settings text is cut off.
+
+        Measures how tall the tallest settings tab really needs to be, and sets the
+        window's minimum height so that tab always fits (growing it now if needed).
+        """
+        try:
+            self.update_idletasks()
+            scale = self._get_window_scaling()
+            pages = [self.tabs.tab(n) for n in self.tabs._name_list]  # noqa: SLF001
+            need = max(p.winfo_reqheight() for p in pages)
+            have = self.tabs.tab(self.tabs.get()).winfo_height()
+            if have <= 1:
+                self.after(300, self._fit_min_size)
+                return
+            win_h = self.winfo_height() / scale
+            min_h = int(win_h - (have - need) / scale + 12)
+            min_w = self.MIN_W
+            self.minsize(min_w, min_h)
+            if win_h < min_h:
+                self.geometry(f"{int(self.winfo_width() / scale)}x{min_h}")
+        except Exception:
+            pass
+
+    def _apply_icons(self) -> None:
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+            apply_window_icons(hwnd)
+        except Exception:
+            pass
 
     def _on_window_close(self) -> None:
         if self.settings.close_to_tray:

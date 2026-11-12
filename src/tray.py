@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw
 import pystray
 
 from src.app_paths import APP_NAME, get_resource_path
+from src.icons import tray_icon_handle
 
 
 _BASE_ICON: Optional[Image.Image] = None
@@ -35,6 +36,24 @@ def _build_tray_icon(state: str = "idle") -> Image.Image:
         draw.ellipse((38, 38, 63, 63), fill=(17, 8, 42, 255))
         draw.ellipse((42, 42, 59, 59), fill=badge)
     return img
+
+
+class _GhostTrayIcon(pystray.Icon):
+    """pystray icon that loads our multi-size .ico at the exact tray size (no blur)."""
+
+    ghost_state = "idle"
+
+    def _assert_icon_handle(self):  # noqa: D401 - pystray internal hook (Windows backend)
+        if getattr(self, "_icon_handle", None):
+            return
+        try:
+            handle = tray_icon_handle(self.ghost_state)
+        except Exception:
+            handle = 0
+        if handle:
+            self._icon_handle = handle
+        else:
+            super()._assert_icon_handle()
 
 
 class TrayController:
@@ -65,7 +84,7 @@ class TrayController:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Exit", lambda _icon, _item: self.on_exit()),
         )
-        self._icon = pystray.Icon(
+        self._icon = _GhostTrayIcon(
             "ghost_macro_recorder",
             _build_tray_icon(self._state),
             APP_NAME,
@@ -77,6 +96,7 @@ class TrayController:
     def set_state(self, state: str, tooltip: str = "") -> None:
         self._state = state
         if self._icon is not None:
+            self._icon.ghost_state = state
             self._icon.icon = _build_tray_icon(state)
             self._icon.title = tooltip or f"{APP_NAME} ({state.capitalize()})"
 

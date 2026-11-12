@@ -23,8 +23,10 @@ GHOST_BOX = (190, 150, 1080, 880)
 # Tighter crop used for taskbar-size icons (<= 48px): just the ghost body,
 # so it fills the tile instead of shrinking to a smudge.
 GHOST_BOX_SMALL = (300, 175, 960, 835)
-SMALL_SIZES = (16, 20, 24, 32, 40, 48)
-LARGE_SIZES = (64, 96, 128, 256)
+# Every size Windows asks for at 100-300% display scaling (taskbar, title bar,
+# Alt+Tab, tray, Explorer). Small ones use the tight, sharpened ghost crop.
+SMALL_SIZES = (16, 20, 24, 28, 30, 32, 36, 40, 42, 48, 56, 60, 64, 72, 80, 96)
+LARGE_SIZES = (128, 192, 256)
 
 
 AMBER_HUE = 39 / 360  # app accent #ffb020
@@ -145,9 +147,13 @@ def generate_icons(output_dir: Path) -> tuple[Path, Path]:
 
     small = _small_master(src)
     frames = [_render_size(small, px, sharpen=True) for px in SMALL_SIZES]
-    frames += [_render_size(icon, px, sharpen=px <= 96) for px in LARGE_SIZES]
+    frames += [_render_size(icon, px, sharpen=False) for px in LARGE_SIZES]
     small_png = output_dir / "icon_small.png"
     _render_size(small, 64, sharpen=True).save(small_png, optimize=True)
+    # Crisp in-app header logo (CTk scales it down per display DPI)
+    _render_size(small, 160, sharpen=True).save(output_dir / "icon_ui.png", optimize=True)
+    # 1024px master for stores / docs / anything needing a large icon
+    icon.save(output_dir / "icon_1024.png", optimize=True)
 
     ico_path = output_dir / "app.ico"
     frames[-1].save(
