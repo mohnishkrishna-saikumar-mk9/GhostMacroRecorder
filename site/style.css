@@ -367,3 +367,23 @@ html { scroll-padding-top: 96px; }
 @media (max-width: 860px) {
   .menu { top: calc(100% + 8px); left: 0; right: 0; border: 1px solid var(--line-2); border-radius: 18px; background: var(--bg-2); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9); }
 }
+
+/* page background: a faint dot grid and two soft amber glows that stay put while you scroll */
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(900px 600px at 85% -10%, rgba(255, 176, 32, .10), transparent 70%),
+    radial-gradient(700px 500px at -10% 60%, rgba(255, 176, 32, .05), transparent 70%),
+    radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1.4px);
+  background-size: auto, auto, 26px 26px;
+  background-attachment: fixed, fixed, fixed;
+}
+.section--alt { background: rgba(16, 18, 23, .72); }
+.site-footer { background: rgba(16, 18, 23, .9); }
+
+/* nothing shows above or around the floating header while scrolling */
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto 0; height: 96px; z-index: 49; pointer-events: none;
+  background: linear-gradient(var(--bg) 0, var(--bg) 62%, rgba(11, 12, 15, 0));
+}
+.site-header { background: rgba(18, 20, 26, .96); }
