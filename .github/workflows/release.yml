@@ -47,14 +47,38 @@ jobs:
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc installer\GhostMacroRecorder.iss
 
-      - name: Upload installer artifact
+      - name: Upload unsigned installer
+        id: upload-unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: GhostMacroRecorder-Setup
+          name: GhostMacroRecorder-Setup-unsigned
           path: dist/GhostMacroRecorder-Setup.exe
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Code signing by SignPath Foundation (see CODE_SIGNING_POLICY.md).
+      # Switched on automatically once the repository variable SIGNPATH_ORGANIZATION_ID
+      # and the secret SIGNPATH_API_TOKEN are set. Until then releases stay unsigned.
+      - name: Sign installer with SignPath
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'GhostMacroRecorder' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Publish GitHub Release (signed)
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: signed/GhostMacroRecorder-Setup.exe
+          generate_release_notes: true
+
+      - name: Publish GitHub Release (unsigned)
+        if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID == ''
         uses: softprops/action-gh-release@v2
         with:
           files: dist/GhostMacroRecorder-Setup.exe

@@ -84,9 +84,11 @@ No Python or anything else needs to be installed separately.
 (Your settings and saved macros in `AppData` are kept, in case you reinstall.)
 
 > [!NOTE]
-> The installer isn't code-signed yet, so Windows SmartScreen may show *"Windows protected your PC"*.
-> Click **More info → Run anyway**. On PCs with **Smart App Control** turned on, unsigned apps are
-> blocked entirely — run it from source instead (see below).
+> The installer isn't code-signed **yet** — we've applied for free signing from SignPath Foundation
+> ([code signing policy](CODE_SIGNING_POLICY.md)). Until then:
+> - **SmartScreen** may show *"Windows protected your PC"* → click **More info → Run anyway**.
+> - **Smart App Control** blocks unsigned apps completely, with no override. On those PCs,
+>   [run it from source](#run-from-source) for now.
 
 ## ▶ How to use
 
@@ -155,6 +157,8 @@ scripts/make_readme_art.py draws the README banner and feature cards
 tests/                   pytest suite
 ```
 
-## License
+## Code signing, conduct and license
 
-[MIT](LICENSE) © 2026 Ghost Macro Recorder
+- [Code signing policy](CODE_SIGNING_POLICY.md) — what is signed, how releases are built, team roles and privacy.
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [MIT](LICENSE) © 2026 Ghost Macro Recorder
