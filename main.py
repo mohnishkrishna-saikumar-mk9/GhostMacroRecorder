@@ -22,6 +22,11 @@ def main() -> None:
     app = MacroRecorderApp(start_hidden="--tray" in sys.argv[1:])
     listen_for_show_requests(lambda: app.after(0, app.show_from_tray))
     app.mainloop()
+    # End the whole process now, so no leftover thread keeps files locked
+    # (the installer and uninstaller need the files free).
+    import os
+
+    os._exit(0)
 
 
 if __name__ == "__main__":

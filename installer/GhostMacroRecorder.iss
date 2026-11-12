@@ -51,7 +51,36 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 ; In-app updates run this installer with /SILENT: open the app again afterwards, as the user.
 Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
+[UninstallDelete]
+; Everything in the install folder goes, including files the app created after installing.
+; (Your macros and settings live in %APPDATA%\GhostMacroRecorder and are kept.)
+Type: filesandordirs; Name: "{app}"
+Type: files; Name: "{userstartup}\{#AppName}.lnk"
+
 [Code]
+// The app hides in the tray instead of closing, so Windows' "close the app" request
+// can't shut it down. End it ourselves before files are replaced or removed.
+procedure CloseRunningApp();
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#AppExe}', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+  Sleep(700);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningApp();
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  CloseRunningApp();
+  Result := True;
+end;
+
 // Remove the "Start with Windows" entry the app may have added for this user.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin

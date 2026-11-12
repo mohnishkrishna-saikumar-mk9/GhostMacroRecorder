@@ -2471,7 +2471,7 @@ class MacroRecorderApp(ctk.CTk):
             self._update_failed(f"{exc} You can download it from the website instead.")
             return
         # The installer replaces the files; get out of its way. It reopens Ghost when done.
-        self.after(600, self.quit_app)
+        self.after(250, self.quit_app)
 
     def _update_failed(self, message: str) -> None:
         self._updating = False
