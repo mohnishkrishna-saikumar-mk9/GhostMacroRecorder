@@ -4,7 +4,7 @@
 ; desktop) shortcuts, and registers an uninstaller in Settings > Apps.
 
 #define AppName "Ghost Macro Recorder"
-#define AppVersion "1.0.3"
+#define AppVersion "1.0.0"
 #define AppPublisher "Ghost Macro Recorder"
 #define AppExe "GhostMacroRecorder.exe"
 
