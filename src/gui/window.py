@@ -725,7 +725,7 @@ class MainWindow(QMainWindow):
                                          on_toggle=lambda _v: self._on_autostart_toggled())
         self.sw_on_top = self._option(lay, "Always on top", "Keep Ghost above other windows.")
         self.sw_updates = self._option(lay, "Tell me when a new version is out",
-                                       "Asks GitHub once a day. Nothing about you is sent.")
+                                       "Checks GitHub each time Ghost opens. Nothing about you is sent.")
         lay.addSpacing(12)
         buttons = QHBoxLayout()
         buttons.addWidget(ghost_button("📂  Open macros folder", self.open_macros_folder))
@@ -1547,10 +1547,10 @@ class MainWindow(QMainWindow):
     def _auto_update_check(self) -> None:
         if self._is_closing:
             return
-        due = time.time() - self.settings.last_update_check >= updater.CHECK_EVERY
-        if self.settings.check_updates and due and self._update_info is None:
+        # Every time Ghost opens, then every 6 hours while it keeps running
+        if self.settings.check_updates and self._update_info is None:
             self.check_for_updates(manual=False)
-        QTimer.singleShot(3600 * 1000, self._auto_update_check)
+        QTimer.singleShot(6 * 3600 * 1000, self._auto_update_check)
 
     def check_for_updates(self, manual: bool = False) -> None:
         if self._updating:
