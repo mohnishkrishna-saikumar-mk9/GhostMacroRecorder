@@ -1899,7 +1899,10 @@ class MacroRecorderApp(ctk.CTk):
         cover = self._cover_window() if self._revealed and self.state() == "normal" else None
         self._apply_theme(value)
         if cover is not None:
-            self.update_idletasks()
+            try:
+                self.update()  # finish every repaint while the cover is up
+            except Exception:
+                pass
             self._fade_out_cover(cover)
 
     def _cover_window(self) -> Optional[tk.Toplevel]:
@@ -2686,8 +2689,25 @@ class MacroRecorderApp(ctk.CTk):
 
     def _uncover_after_resize(self) -> None:
         self._resize_cover_job = None
-        self.update_idletasks()  # finish every widget's redraw behind the cover
+        # Run every queued redraw (widgets repaint from their own <Configure> events,
+        # which update_idletasks alone does not process) while still covered.
+        try:
+            self.update()
+        except Exception:
+            pass
+        if self._resize_cover_job:  # another resize arrived meanwhile: keep covering
+            return
         self._resize_cover.place_forget()
+
+    def _disable_window_animation(self) -> None:
+        """Turn off Windows' grow/shrink animation for this window, which otherwise shows a
+        stretched, doubled picture of the app while it maximizes or restores."""
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+            on = ctypes.c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 3, ctypes.byref(on), ctypes.sizeof(on))
+        except Exception:
+            pass
 
     def _show_splash(self) -> None:
         """A small loading card that appears instantly while the main window is built."""
@@ -2763,6 +2783,7 @@ class MacroRecorderApp(ctk.CTk):
             apply_window_icons(hwnd)
         except Exception:
             pass
+        self._disable_window_animation()
 
     def _on_window_close(self) -> None:
         if self.settings.close_to_tray:
