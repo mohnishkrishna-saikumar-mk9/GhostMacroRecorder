@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 import threading
 import time
 from typing import Callable, Optional
@@ -118,6 +119,7 @@ class MacroPlayer:
         events = list(macro.events)
         total_events = len(events)
         speed = max(0.05, float(settings.speed))
+        humanize = max(0.0, min(0.5, float(getattr(settings, "humanize_pct", 0)) / 100.0))
         status_msg = "Playback complete."
 
         try:
@@ -139,6 +141,9 @@ class MacroPlayer:
                         break
 
                     delta = max(0.0, ev.timestamp - prev_ts) / speed
+                    if humanize > 0 and delta > 0:
+                        # Small random variation so replays don't run at robot-perfect intervals
+                        delta *= random.uniform(1.0 - humanize, 1.0 + humanize)
                     prev_ts = ev.timestamp
                     if deadline is not None:
                         remaining = deadline - time.monotonic()

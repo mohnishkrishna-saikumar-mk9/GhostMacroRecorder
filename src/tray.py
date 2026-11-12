@@ -100,6 +100,14 @@ class TrayController:
             self._icon.icon = _build_tray_icon(state)
             self._icon.title = tooltip or f"{APP_NAME} ({state.capitalize()})"
 
+    def notify(self, title: str, message: str) -> None:
+        """Windows toast from the tray icon (used when a long run finishes)."""
+        if self._icon is not None:
+            try:
+                self._icon.notify(message, title)
+            except Exception:
+                pass
+
     def stop(self) -> None:
         if self._icon is not None:
             self._icon.stop()

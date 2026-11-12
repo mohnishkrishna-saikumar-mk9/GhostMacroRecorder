@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from src.app_paths import set_windows_app_user_model_id
 from src.single_instance import acquire_single_instance, listen_for_show_requests
 from src.win32_backend import enable_dpi_awareness
@@ -16,7 +18,8 @@ def main() -> None:
 
     from src.ui import MacroRecorderApp
 
-    app = MacroRecorderApp()
+    # "--tray": started by Windows at sign-in -> stay quietly in the tray
+    app = MacroRecorderApp(start_hidden="--tray" in sys.argv[1:])
     listen_for_show_requests(lambda: app.after(0, app.show_from_tray))
     app.mainloop()
 

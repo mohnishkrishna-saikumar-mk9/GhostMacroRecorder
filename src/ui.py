@@ -14,6 +14,7 @@ from pathlib import Path
 import threading
 import time
 import tkinter as tk
+import winsound
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from typing import Optional
 
@@ -29,6 +30,7 @@ from src.app_paths import (
     get_user_data_dir,
 )
 from src.icons import apply_window_icons
+from src import autostart
 from src.hotkeys import GlobalHotkeyManager, canonical_hotkey, display_hotkey
 from src.models import AppSettings, Macro, MacroEvent, WindowTarget
 from src.player import MacroPlayer
@@ -372,7 +374,7 @@ class HotkeyField(ctk.CTkButton):
         self.app = app
         self.attr = attr
         super().__init__(
-            master, text="", width=150, height=32, corner_radius=8, fg_color=C["key"],
+            master, text="", width=150, height=28, corner_radius=8, fg_color=C["key"],
             hover_color=C["ghost_hover"], border_width=1, border_color=C["line"], text_color=C["text"],
             font=app._font(12, "bold", app.mono), command=lambda: app._start_hotkey_capture(self),
         )
@@ -416,7 +418,7 @@ class MacroRecorderApp(ctk.CTk):
     MIN_W = 980  # logical px
     """Main desktop application window."""
 
-    def __init__(self) -> None:
+    def __init__(self, start_hidden: bool = False) -> None:
         super().__init__()
         self.settings = AppSettings.load(SETTINGS_PATH)
         ctk.set_appearance_mode(self.settings.appearance_mode)
@@ -482,14 +484,18 @@ class MacroRecorderApp(ctk.CTk):
             on_toggle_record=lambda: self.after(0, self.toggle_record),
             on_toggle_play=lambda: self.after(0, self.toggle_play),
             on_stop_all=lambda: self.after(0, self.stop_all),
+            on_set_target=lambda: self.after(0, self.set_target_to_current_window),
         )
         self._hotkey_results_seen = -1
+        self._countdown_job: Optional[str] = None
+        self._countdown_left = 0
         self._hotkey_status: dict[str, bool] = {}
         self._capture_field: Optional[HotkeyField] = None
         self.hotkeys.set_hotkeys(
             self.settings.hotkey_record,
             self.settings.hotkey_play,
             self.settings.hotkey_stop,
+            self.settings.hotkey_target,
         )
         self.tray = TrayController(
             on_show=lambda: self.after(0, self.show_from_tray),
@@ -509,7 +515,10 @@ class MacroRecorderApp(ctk.CTk):
         self.hotkeys.start()
         self.tray.start()
         self.protocol("WM_DELETE_WINDOW", self._on_window_close)
+        self.attributes("-topmost", bool(self.settings.always_on_top))
         self.after(100, self._tick)
+        if start_hidden:
+            self.after(0, self.withdraw)
 
     # ------------------------------------------------------------------
     # Small widget factories
@@ -829,7 +838,8 @@ class MacroRecorderApp(ctk.CTk):
 
     def _repaint_all_segments(self) -> None:
         """Keep inverted segment labels readable even when changed programmatically."""
-        segs = [self.seg_scope, self.seg_mode, self.seg_limit, self.seg_theme, self.tabs._segmented_button]  # noqa: SLF001
+        segs = [self.seg_scope, self.seg_mode, self.seg_limit, self.seg_theme, self.tabs._segmented_button,  # noqa: SLF001
+                *self._extra_segs]
         for seg in segs:
             if getattr(seg, "_deck_painted", None) != seg.get():
                 self._repaint_segment_text(seg)
@@ -945,6 +955,7 @@ class MacroRecorderApp(ctk.CTk):
             pages[name] = page
         self._repaint_segment_text(self.tabs._segmented_button)  # noqa: SLF001
 
+        self._extra_segs: list[ctk.CTkSegmentedButton] = []
         self._build_summary_card()
         self._build_play_tab(pages["Play"])
         self._build_repeat_tab(pages["Repeat"])
@@ -1030,12 +1041,12 @@ class MacroRecorderApp(ctk.CTk):
         lbl.grid(row=row + 1, column=0, padx=8, pady=(1, 0), sticky="w")
         return lbl
 
-    def _option(self, parent, row: int, title: str, desc: str, value: bool) -> ctk.CTkSwitch:
+    def _option(self, parent, row: int, title: str, desc: str, value: bool, command=None) -> ctk.CTkSwitch:
         """A switch with a plain-language explanation underneath."""
         sw = ctk.CTkSwitch(
             parent,
             text=title,
-            command=self._on_settings_changed,
+            command=command or self._on_settings_changed,
             font=self._font(13, "bold"),
             text_color=C["text"],
             progress_color=C["accent"],
@@ -1062,6 +1073,27 @@ class MacroRecorderApp(ctk.CTk):
         "Repeat count": "Play the macro a set number of times. 0 = keep repeating until you press Stop.",
         "Run for time": "Keep repeating the macro until this much time has passed, then stop by itself.",
     }
+
+    def _pill(self, parent, values: list[str], current: str, height: int = 28) -> tuple[ctk.CTkSegmentedButton, ctk.StringVar]:
+        var = ctk.StringVar(value=current if current in values else values[0])
+        seg = ctk.CTkSegmentedButton(parent, values=values, variable=var, command=self._on_settings_changed,
+                                     height=height, corner_radius=8, font=self._font(11))
+        self._style_segmented(seg)
+        self._extra_segs.append(seg)
+        return seg, var
+
+    def _mini_box(self, parent, column: int, title: str) -> ctk.CTkFrame:
+        box = ctk.CTkFrame(parent, fg_color=C["panel_hi"], corner_radius=10, border_width=1, border_color=C["line"])
+        box.grid(row=0, column=column, padx=(0 if column == 0 else 5, 5 if column == 0 else 0), sticky="ew")
+        box.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(box, text=title, font=self._font(10, "bold"), text_color=C["muted"], anchor="w").grid(
+            row=0, column=0, padx=10, pady=(7, 3), sticky="w"
+        )
+        return box
+
+    COUNTDOWN = {"Off": 0, "3 s": 3, "5 s": 5}
+    HUMANIZE = {"Off": 0, "Light": 5, "Strong": 15}
+    ON_FINISH = {"Nothing": "none", "Notify": "notify", "Sound": "sound"}
 
     def _build_play_tab(self, tab: ctk.CTkFrame) -> None:
         self._setting_label(tab, "How should it play?", 0, top=6)
@@ -1098,10 +1130,6 @@ class MacroRecorderApp(ctk.CTk):
             text_color=C["accent"],
         )
         self.lbl_speed.grid(row=0, column=1, sticky="e")
-        ctk.CTkLabel(
-            tab, text="1× replays at the same pace you recorded. 2× is twice as fast.", font=self._font(11),
-            text_color=C["hint"], anchor="w", wraplength=self.WRAP, justify="left",
-        ).grid(row=4, column=0, padx=8, sticky="w")
 
         self.slider_speed = ctk.CTkSlider(
             tab,
@@ -1121,6 +1149,18 @@ class MacroRecorderApp(ctk.CTk):
         ticks.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(ticks, text="0.25× slower", font=self._font(10), text_color=C["muted"]).grid(row=0, column=0)
         ctk.CTkLabel(ticks, text="faster 5×", font=self._font(10), text_color=C["muted"]).grid(row=0, column=2)
+
+        extras = ctk.CTkFrame(tab, fg_color="transparent")
+        extras.grid(row=7, column=0, padx=8, pady=(10, 0), sticky="ew")
+        extras.grid_columnconfigure((0, 1), weight=1)
+        box = self._mini_box(extras, 0, "COUNTDOWN · time to switch apps")
+        rev = {v: k for k, v in self.COUNTDOWN.items()}
+        self.seg_countdown, self.countdown_var = self._pill(box, list(self.COUNTDOWN), rev.get(self.settings.start_delay, "Off"))
+        self.seg_countdown.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="ew")
+        box = self._mini_box(extras, 1, "HUMANIZE · natural timing")
+        rev = {v: k for k, v in self.HUMANIZE.items()}
+        self.seg_humanize, self.humanize_var = self._pill(box, list(self.HUMANIZE), rev.get(self.settings.humanize_pct, "Off"))
+        self.seg_humanize.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="ew")
 
     def _build_repeat_tab(self, tab: ctk.CTkFrame) -> None:
         self._setting_label(tab, "When should it stop?", 0, top=6)
@@ -1185,7 +1225,17 @@ class MacroRecorderApp(ctk.CTk):
             tab, text="", font=self._font(12, "bold", self.mono), text_color=C["accent"], anchor="w",
             justify="left", wraplength=self.WRAP,
         )
-        self.lbl_estimate.grid(row=4, column=0, padx=10, pady=(10, 0), sticky="w")
+        self.lbl_estimate.grid(row=4, column=0, padx=10, pady=(6, 0), sticky="w")
+
+        finish = ctk.CTkFrame(tab, fg_color="transparent")
+        finish.grid(row=5, column=0, padx=8, pady=(8, 0), sticky="ew")
+        finish.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(finish, text="When it's done", font=self._font(13, "bold"), text_color=C["text"]).grid(
+            row=0, column=0, sticky="w", padx=(0, 12)
+        )
+        rev = {v: k for k, v in self.ON_FINISH.items()}
+        self.seg_finish, self.finish_var = self._pill(finish, list(self.ON_FINISH), rev.get(self.settings.on_finish, "Nothing"))
+        self.seg_finish.grid(row=0, column=1, sticky="ew")
         self._apply_limit_mode_ui()
 
     def _build_record_tab(self, tab: ctk.CTkFrame) -> None:
@@ -1215,8 +1265,7 @@ class MacroRecorderApp(ctk.CTk):
     def _build_keys_tab(self, tab: ctk.CTkFrame) -> None:
         self._setting_label(
             tab, "Keyboard shortcuts", 0,
-            "Work anywhere, even when this app is hidden. Click a box, then press the key you want "
-            "(combos like Ctrl + Shift + R work too). Esc cancels.",
+            "Work even when Ghost is hidden. Click a box, press a key.",
             top=6,
         )
         grid = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1228,19 +1277,20 @@ class MacroRecorderApp(ctk.CTk):
             ("record", "hotkey_record", C["rec"], "Record / stop"),
             ("play", "hotkey_play", C["play"], "Play / stop"),
             ("stop", "hotkey_stop", C["muted"], "Stop everything"),
+            ("target", "hotkey_target", C["accent"], "Target current app"),
         ]
         for r, (action, attr, dot, label) in enumerate(rows):
             ctk.CTkLabel(grid, text="●", font=self._font(11), text_color=dot, width=14).grid(
-                row=r * 2, column=0, padx=(0, 8), pady=(6, 0)
+                row=r * 2, column=0, padx=(0, 8), pady=(4, 0)
             )
             ctk.CTkLabel(grid, text=label, font=self._font(13), text_color=C["text"], anchor="w").grid(
-                row=r * 2, column=1, sticky="w", pady=(6, 0)
+                row=r * 2, column=1, sticky="w", pady=(4, 0)
             )
             field = HotkeyField(grid, self, attr)
-            field.grid(row=r * 2, column=2, sticky="e", pady=(6, 0))
+            field.grid(row=r * 2, column=2, sticky="e", pady=(4, 0))
             self.hotkey_fields[action] = field
             status = ctk.CTkLabel(grid, text="", font=self._font(10), text_color=C["hint"], anchor="e",
-                                  height=14)
+                                  height=13)
             status.grid(row=r * 2 + 1, column=1, columnspan=2, sticky="e")
             self.hotkey_status_lbls[action] = status
         self.lbl_hotkey_msg = ctk.CTkLabel(
@@ -1250,11 +1300,16 @@ class MacroRecorderApp(ctk.CTk):
         self.lbl_hotkey_msg.grid(row=3, column=0, padx=8, pady=(6, 0), sticky="w")
 
     def _build_app_tab(self, tab: ctk.CTkFrame) -> None:
-        self._setting_label(tab, "Theme", 0, "Light, dark, or follow your Windows setting.", top=6)
+        theme_row = ctk.CTkFrame(tab, fg_color="transparent")
+        theme_row.grid(row=0, column=0, padx=8, pady=(6, 0), sticky="ew")
+        theme_row.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(theme_row, text="Theme", font=self._font(13, "bold"), text_color=C["text"]).grid(
+            row=0, column=0, sticky="w", padx=(0, 14)
+        )
         mode = self.settings.appearance_mode.title()
         self.theme_var = ctk.StringVar(value=mode if mode in ("Light", "Dark", "System") else "Dark")
         self.seg_theme = ctk.CTkSegmentedButton(
-            tab,
+            theme_row,
             values=["Light", "Dark", "System"],
             variable=self.theme_var,
             command=self._on_theme_changed,
@@ -1262,20 +1317,34 @@ class MacroRecorderApp(ctk.CTk):
             corner_radius=8,
             font=self._font(12),
         )
-        self.seg_theme.grid(row=2, column=0, padx=8, pady=(6, 0), sticky="ew")
+        self.seg_theme.grid(row=0, column=1, sticky="ew")
         self._style_segmented(self.seg_theme)
 
         self.sw_close_tray = self._option(
             tab, 3, "Keep running in the tray when closed",
-            "Clicking ✕ hides Ghost next to the clock (bottom-right) so hotkeys keep working. "
-            "Right-click the tray ghost → Exit to quit completely.",
+            "✕ hides Ghost by the clock; tray ghost → Exit quits.",
             self.settings.close_to_tray,
+        )
+        self.sw_autostart = self._option(
+            tab, 5, "Start with Windows",
+            "Opens quietly in the tray when you sign in.",
+            autostart.is_enabled(), command=self._on_autostart_toggled,
+        )
+        self.sw_on_top = self._option(
+            tab, 7, "Always on top",
+            "Keep Ghost above other windows.",
+            self.settings.always_on_top,
+        )
+        self._ghost_button(tab, "📂  Open macros folder", self.open_macros_folder, width=180).grid(
+            row=9, column=0, padx=8, pady=(12, 0), sticky="w"
         )
 
     # ------------------------------------------------------------------
     # Hotkey capture
     # ------------------------------------------------------------------
-    HOTKEY_LABELS = {"hotkey_record": "Record / stop", "hotkey_play": "Play / stop", "hotkey_stop": "Stop everything"}
+    HOTKEY_LABELS = {"hotkey_record": "Record / stop", "hotkey_play": "Play / stop", "hotkey_stop": "Stop everything",
+                     "hotkey_target": "Target current app"}
+    HOTKEY_ATTRS = {"record": "hotkey_record", "play": "hotkey_play", "stop": "hotkey_stop", "target": "hotkey_target"}
     TK_KEY_NAMES = {
         "Prior": "PAGEUP", "Next": "PAGEDOWN", "Scroll_Lock": "SCROLLLOCK", "Pause": "PAUSE",
         "Insert": "INSERT", "Delete": "DELETE", "Home": "HOME", "End": "END", "space": "SPACE",
@@ -1361,13 +1430,62 @@ class MacroRecorderApp(ctk.CTk):
             lbl = self.hotkey_status_lbls.get(action)
             if lbl is None:
                 continue
+            lbl.unbind("<Button-1>")
             if ok:
-                lbl.configure(text="✓ active", text_color=C["play"])
+                lbl.configure(text="✓ active", text_color=C["play"], cursor="")
             else:
-                lbl.configure(text="⚠ taken by another app — pick a different key", text_color=C["warn"])
                 failed.append(action)
+                fix = self.hotkeys.last_suggestions.get(action, "")
+                if fix:
+                    lbl.configure(text=f"⚠ taken by another app — click to use {display_hotkey(fix)}",
+                                  text_color=C["warn"], cursor="hand2")
+                    lbl.bind("<Button-1>", lambda _e, a=action, k=fix: self._use_hotkey(a, k))
+                else:
+                    lbl.configure(text="⚠ taken by another app — pick a different key", text_color=C["warn"],
+                                  cursor="")
         if failed and self._capture_field is None:
             self._set_status("A hotkey couldn't be set — see Settings › Keys", "warn")
+
+    def _use_hotkey(self, action: str, key: str) -> None:
+        setattr(self.settings, self.HOTKEY_ATTRS[action], key)
+        self.lbl_hotkey_msg.configure(text="")
+        self._on_settings_changed()
+        self._set_status(f"{self.HOTKEY_LABELS[self.HOTKEY_ATTRS[action]]} is now {display_hotkey(key)}", "ok")
+
+    def _on_autostart_toggled(self) -> None:
+        want = bool(self.sw_autostart.get())
+        try:
+            autostart.set_enabled(want)
+            self._set_status("Ghost will start with Windows" if want else "Ghost won't start with Windows", "ok")
+        except PermissionError:
+            self.sw_autostart.select() if autostart.is_enabled() else self.sw_autostart.deselect()
+            self._set_status("Windows security blocked the startup setting", "warn")
+            if messagebox.askyesno(
+                "Start with Windows",
+                "Windows security on this PC blocked Ghost from adding itself to startup.\n\n"
+                "You can still do it yourself: put a shortcut to Ghost Macro Recorder in your "
+                "Startup folder.\n\nOpen the Startup folder now?",
+                parent=self,
+            ):
+                os.startfile(autostart.startup_folder())  # noqa: S606
+        except OSError as exc:
+            self.sw_autostart.select() if autostart.is_enabled() else self.sw_autostart.deselect()
+            self._set_status(f"Couldn't change startup setting: {exc}", "warn")
+
+    def open_macros_folder(self) -> None:
+        MACROS_DIR.mkdir(parents=True, exist_ok=True)
+        os.startfile(MACROS_DIR)  # noqa: S606 - opens Explorer on our own data folder
+
+    def set_target_to_current_window(self) -> None:
+        """Hotkey: make whatever window you're in right now the target."""
+        if self.recorder.is_recording or self.player.is_playing:
+            return
+        hwnd = get_foreground_root_window()
+        target = get_window_target(hwnd) if hwnd else None
+        if target is None or target.pid == self.own_pid:
+            self._set_status("Switch to the app you want, then press the hotkey", "warn")
+            return
+        self._finish_pick_window(target)
 
     def _build_footer(self) -> None:
         footer = ctk.CTkFrame(self, fg_color="transparent")
@@ -1736,6 +1854,11 @@ class MacroRecorderApp(ctk.CTk):
         self.settings.minimize_on_record = bool(self.sw_min_rec.get())
         self.settings.minimize_on_play = bool(self.sw_min_play.get())
         self.settings.close_to_tray = bool(self.sw_close_tray.get())
+        self.settings.start_delay = self.COUNTDOWN.get(self.countdown_var.get(), 0)
+        self.settings.humanize_pct = self.HUMANIZE.get(self.humanize_var.get(), 0)
+        self.settings.on_finish = self.ON_FINISH.get(self.finish_var.get(), "none")
+        self.settings.always_on_top = bool(self.sw_on_top.get())
+        self.attributes("-topmost", self.settings.always_on_top)
 
         try:
             self.settings.repeat_count = max(0, int(self.repeat_var.get().strip()))
@@ -1764,6 +1887,7 @@ class MacroRecorderApp(ctk.CTk):
             self.settings.hotkey_record,
             self.settings.hotkey_play,
             self.settings.hotkey_stop,
+            self.settings.hotkey_target,
         )
         self._refresh_button_labels()
         self._update_estimate()
@@ -1784,6 +1908,7 @@ class MacroRecorderApp(ctk.CTk):
     def toggle_record(self) -> None:
         if self.player.is_playing:
             return
+        self._cancel_countdown()  # never start playback in the middle of a new recording
         if self.recorder.is_recording:
             events = self.recorder.stop()
             self.macro.events = events
@@ -1810,6 +1935,7 @@ class MacroRecorderApp(ctk.CTk):
             self.settings.hotkey_record,
             self.settings.hotkey_play,
             self.settings.hotkey_stop,
+            self.settings.hotkey_target,
         }
         if self.settings.minimize_on_record:
             self.iconify()
@@ -1832,6 +1958,10 @@ class MacroRecorderApp(ctk.CTk):
         if self.player.is_playing:
             self.player.stop()
             return
+        if self._countdown_job is not None:
+            self._cancel_countdown()
+            self._set_status("Playback cancelled", "info")
+            return
         if not self.macro.events:
             self._set_status("Record or open a macro first", "warn")
             return
@@ -1839,6 +1969,29 @@ class MacroRecorderApp(ctk.CTk):
         self._on_settings_changed()
         if self.settings.minimize_on_play:
             self.iconify()
+        if self.settings.start_delay > 0:
+            self._countdown_left = int(self.settings.start_delay)
+            self._countdown_tick()
+            return
+        self._start_playback()
+
+    def _countdown_tick(self) -> None:
+        if self._countdown_left <= 0:
+            self._countdown_job = None
+            self._start_playback()
+            return
+        self._set_status(f"Playing in {self._countdown_left}…  (press Play again to cancel)", "accent")
+        self.lbl_timecode.configure(text=f"-{self._countdown_left:02d}.000", text_color=C["play"])
+        self._countdown_left -= 1
+        self._countdown_job = self.after(1000, self._countdown_tick)
+
+    def _cancel_countdown(self) -> None:
+        if self._countdown_job is not None:
+            self.after_cancel(self._countdown_job)
+            self._countdown_job = None
+            self.lbl_timecode.configure(text=fmt_timecode(self.macro.duration), text_color=C["accent"])
+
+    def _start_playback(self) -> None:
         self._play_ev_idx = 0
         self._play_started_at = time.perf_counter()
         self.player.start(
@@ -1848,6 +2001,7 @@ class MacroRecorderApp(ctk.CTk):
         )
 
     def stop_all(self) -> None:
+        self._cancel_countdown()
         if self.recorder.is_recording:
             self.toggle_record()
         if self.player.is_playing:
@@ -1928,9 +2082,20 @@ class MacroRecorderApp(ctk.CTk):
             )
             self._set_status(message, "info")
             self.tray.set_state("idle", APP_NAME)
+            if message.startswith(("Playback complete", "Time limit")):
+                self._on_playback_finished(message)
             if self.settings.minimize_on_play and not self._is_closing:
                 self.show_from_tray()
         self._mark_tape_dirty()
+
+    def _on_playback_finished(self, message: str) -> None:
+        if self.settings.on_finish == "notify":
+            self.tray.notify(APP_NAME, f"Finished: {message}")
+        elif self.settings.on_finish == "sound":
+            try:
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Timeline & File Operations

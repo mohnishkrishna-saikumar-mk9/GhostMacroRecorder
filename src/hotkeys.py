@@ -25,6 +25,7 @@ WM_REBIND_HOTKEYS = WM_APP + 1
 HOTKEY_ID_RECORD = 1
 HOTKEY_ID_PLAY = 2
 HOTKEY_ID_STOP = 3
+HOTKEY_ID_TARGET = 4
 
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
@@ -107,7 +108,10 @@ class GlobalHotkeyManager:
         on_toggle_play: Callable[[], None],
         on_stop_all: Callable[[], None],
         on_registered: Optional[Callable[[dict[str, bool]], None]] = None,
+        on_set_target: Optional[Callable[[], None]] = None,
     ) -> None:
+        self.on_set_target = on_set_target
+        self._hotkey_target = ""
         self.on_toggle_record = on_toggle_record
         self.on_toggle_play = on_toggle_play
         self.on_stop_all = on_stop_all
@@ -116,6 +120,7 @@ class GlobalHotkeyManager:
         self._suspended = False
         # Latest registration outcome, safe to poll from the UI thread
         self.last_results: dict[str, bool] = {}
+        self.last_suggestions: dict[str, str] = {}
         self.results_version = 0
 
         self._lock = threading.Lock()
@@ -126,8 +131,9 @@ class GlobalHotkeyManager:
         self._thread_id: int = 0
         self._ready_event = threading.Event()
 
-    def set_hotkeys(self, record_key: str, play_key: str, stop_key: str) -> None:
+    def set_hotkeys(self, record_key: str, play_key: str, stop_key: str, target_key: str = "") -> None:
         with self._lock:
+            self._hotkey_target = canonical_hotkey(target_key)
             self._hotkey_record = canonical_hotkey(record_key)
             self._hotkey_play = canonical_hotkey(play_key)
             self._hotkey_stop = canonical_hotkey(stop_key)
@@ -173,6 +179,7 @@ class GlobalHotkeyManager:
                 ("record", HOTKEY_ID_RECORD, self._hotkey_record),
                 ("play", HOTKEY_ID_PLAY, self._hotkey_play),
                 ("stop", HOTKEY_ID_STOP, self._hotkey_stop),
+                ("target", HOTKEY_ID_TARGET, self._hotkey_target),
             ]
         results: dict[str, bool] = {}
         seen: set[tuple[int, int]] = set()
@@ -183,8 +190,19 @@ class GlobalHotkeyManager:
                 seen.add((vk, mods))
                 ok = bool(user32.RegisterHotKey(None, hk_id, MOD_NOREPEAT | mods, vk))
             results[action] = ok
+        # Find replacements for taken keys here, on the same thread that registers keys,
+        # so the probe can never collide with a registration in progress.
+        taken = {name for _a, _i, name in bindings}
+        suggestions: dict[str, str] = {}
+        for action, ok in results.items():
+            if not ok:
+                fix = suggest_free_hotkey(taken)
+                if fix:
+                    suggestions[action] = fix
+                    taken.add(fix)  # give each taken key a different replacement
         with self._lock:
             self.last_results = dict(results)
+            self.last_suggestions = suggestions
             self.results_version += 1
         if self.on_registered:
             try:
@@ -193,7 +211,7 @@ class GlobalHotkeyManager:
                 pass
 
     def _unregister_all(self) -> None:
-        for hk_id in (HOTKEY_ID_RECORD, HOTKEY_ID_PLAY, HOTKEY_ID_STOP):
+        for hk_id in (HOTKEY_ID_RECORD, HOTKEY_ID_PLAY, HOTKEY_ID_STOP, HOTKEY_ID_TARGET):
             user32.UnregisterHotKey(None, hk_id)
 
     def _run_message_loop(self) -> None:
@@ -217,7 +235,34 @@ class GlobalHotkeyManager:
                         self.on_toggle_play()
                     elif hk_id == HOTKEY_ID_STOP:
                         self.on_stop_all()
+                    elif hk_id == HOTKEY_ID_TARGET and self.on_set_target:
+                        self.on_set_target()
         finally:
             self._unregister_all()
             with self._lock:
                 self._thread_id = 0
+
+
+def is_hotkey_free(name: str) -> bool:
+    """True if no other program currently owns this key/combo (we test-register it briefly)."""
+    vk, mods = hotkey_name_to_vk(name), hotkey_modifiers(name)
+    if not vk:
+        return False
+    probe_id = 0xBF00
+    if user32.RegisterHotKey(None, probe_id, MOD_NOREPEAT | mods, vk):
+        user32.UnregisterHotKey(None, probe_id)
+        return True
+    return False
+
+
+SUGGESTED_KEYS = ("F8", "F7", "F6", "F11", "PAUSE", "SCROLLLOCK", "CTRL+F9", "CTRL+F10", "CTRL+F12",
+                  "CTRL+ALT+R", "CTRL+ALT+P", "CTRL+ALT+S", "CTRL+ALT+T", "CTRL+SHIFT+F12")
+
+
+def suggest_free_hotkey(taken: set[str]) -> str:
+    """First suggestion that nobody (us or another app) is using right now."""
+    used = {canonical_hotkey(t) for t in taken}
+    for name in SUGGESTED_KEYS:
+        if name not in used and is_hotkey_free(name):
+            return name
+    return ""

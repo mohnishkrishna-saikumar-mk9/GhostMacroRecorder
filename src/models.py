@@ -212,6 +212,11 @@ class AppSettings:
     hotkey_record: str = "F9"
     hotkey_play: str = "F10"
     hotkey_stop: str = "F12"
+    hotkey_target: str = "CTRL+ALT+T"  # set the target to whichever window you're in
+    start_delay: int = 0  # seconds of countdown before playback starts
+    humanize_pct: int = 0  # random +/- variation applied to each wait, in percent
+    on_finish: str = "none"  # "none" | "notify" | "sound"
+    always_on_top: bool = False
     appearance_mode: str = "Dark"
 
     def save(self, path: str | Path) -> Path:
