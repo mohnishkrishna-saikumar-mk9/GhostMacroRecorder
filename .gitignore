@@ -1,0 +1,20 @@
+# Virtual environments & Python caches
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Build & distribution artifacts
+build/
+dist/
+*.spec.bak
+
+# Local user state
+config.json
+macros/
+
+
+# Local-only files
+src/ui_classic_backup.py
+*.log

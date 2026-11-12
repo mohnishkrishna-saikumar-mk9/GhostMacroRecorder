@@ -1,0 +1,2 @@
+"""Ghost Macro Recorder package."""
+
