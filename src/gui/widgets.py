@@ -238,9 +238,9 @@ class Segmented(QWidget):
         p.drawRoundedRect(QRectF(0, 0, w, h), 8, 8)
         if 0 <= self._hover != self.index:
             p.setBrush(Theme.q("ghost_hover"))
-            p.drawRoundedRect(QRectF(self._hover * seg_w + 2, 2, seg_w - 4, h - 4), 6, 6)
+            p.drawRoundedRect(QRectF(self._hover * seg_w, 0, seg_w, h), 8, 8)
         p.setBrush(Theme.q("text"))
-        p.drawRoundedRect(QRectF(self._x * seg_w + 2, 2, seg_w - 4, h - 4), 6, 6)
+        p.drawRoundedRect(QRectF(self._x * seg_w, 0, seg_w, h), 8, 8)
         p.setFont(Theme.font(self.font_px, 600))
         inv = Theme.q("panel_hi") if not Theme.dark else Theme.q("bg")
         for i, label in enumerate(self.values):
