@@ -10,7 +10,32 @@ from src.single_instance import acquire_single_instance, listen_for_show_request
 from src.win32_backend import enable_dpi_awareness
 
 
+def _install_error_log() -> None:
+    """Windowed builds have no console: write any error to %APPDATA%\\GhostMacroRecorder\\error.log."""
+    import time
+    import traceback
+
+    from src.app_paths import get_user_data_dir
+
+    log_path = get_user_data_dir() / "error.log"
+    if sys.stdout is None or sys.stderr is None:
+        stream = open(log_path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 - lives for the process
+        sys.stdout = sys.stdout or stream
+        sys.stderr = sys.stderr or stream
+
+    def hook(exc_type, exc, tb) -> None:
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+                f.write("".join(traceback.format_exception(exc_type, exc, tb)))
+        except OSError:
+            pass
+
+    sys.excepthook = hook
+
+
 def main() -> None:
+    _install_error_log()
     # A copy is already running (maybe hidden in the tray): bring it forward instead.
     if not acquire_single_instance():
         return
