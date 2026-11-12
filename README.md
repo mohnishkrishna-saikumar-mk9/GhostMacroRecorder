@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ghostmacrorecorder.pages.dev"><img src="https://img.shields.io/badge/Website-ghostmacrorecorder.pages.dev-ffb020?style=for-the-badge&logo=cloudflare&logoColor=white&labelColor=14161a" alt="Website"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest/download/GhostMacroRecorder-Setup.exe">
     <img src="https://img.shields.io/badge/Download_for_Windows-Setup.exe-ffb020?style=for-the-badge&logo=windows&logoColor=white&labelColor=14161a" alt="Download for Windows">
   </a>
