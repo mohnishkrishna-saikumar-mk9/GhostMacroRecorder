@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest">
+  <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest/download/GhostMacroRecorder-Setup.exe">
     <img src="https://img.shields.io/badge/Download_for_Windows-Setup.exe-ffb020?style=for-the-badge&logo=windows&logoColor=white&labelColor=14161a" alt="Download for Windows">
   </a>
 </p>
@@ -62,7 +62,8 @@ stealing keyboard focus. Start a macro, then switch to another app and carry on 
 
 ## ⬇ Download & install
 
-1. Go to the [**latest release**](../../releases/latest) and download **`GhostMacroRecorder-Setup-x.y.z.exe`**.
+1. Click **[Download for Windows](https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/releases/latest/download/GhostMacroRecorder-Setup.exe)** — it downloads **`GhostMacroRecorder-Setup.exe`** straight away.
+   (All versions and release notes: [Releases](../../releases).)
 2. Run the installer and follow the steps.
 3. Launch **Ghost Macro Recorder** from the Start Menu (or the desktop shortcut, if you ticked it).
 
@@ -129,7 +130,7 @@ winget install JRSoftware.InnoSetup   # one-time
 ```
 
 `build.ps1` regenerates the icons, runs the tests, packages the app with PyInstaller into
-`dist\GhostMacroRecorder\`, and builds `dist\GhostMacroRecorder-Setup-1.0.0.exe` with Inno Setup.
+`dist\GhostMacroRecorder\`, and builds `dist\GhostMacroRecorder-Setup.exe` with Inno Setup.
 
 Pushing a tag such as `v1.0.0` to GitHub runs the same build in GitHub Actions and attaches the installer to a
 new GitHub Release automatically.

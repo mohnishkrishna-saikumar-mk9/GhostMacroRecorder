@@ -51,11 +51,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GhostMacroRecorder-Setup
-          path: dist/GhostMacroRecorder-Setup-*.exe
+          path: dist/GhostMacroRecorder-Setup.exe
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/GhostMacroRecorder-Setup-*.exe
+          files: dist/GhostMacroRecorder-Setup.exe
           generate_release_notes: true

@@ -27,4 +27,4 @@ if (-not $iscc) {
 & $iscc installer\GhostMacroRecorder.iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
 
-Write-Host "Done! Installer: dist\GhostMacroRecorder-Setup-1.0.0.exe"
+Write-Host "Done! Installer: dist\GhostMacroRecorder-Setup.exe"

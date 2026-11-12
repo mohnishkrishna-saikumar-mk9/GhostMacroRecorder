@@ -4,7 +4,7 @@
 ; desktop) shortcuts, and registers an uninstaller in Settings > Apps.
 
 #define AppName "Ghost Macro Recorder"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppPublisher "Ghost Macro Recorder"
 #define AppExe "GhostMacroRecorder.exe"
 
@@ -21,7 +21,8 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist
-OutputBaseFilename=GhostMacroRecorder-Setup-{#AppVersion}
+; Fixed name so .../releases/latest/download/GhostMacroRecorder-Setup.exe always works
+OutputBaseFilename=GhostMacroRecorder-Setup
 SetupIconFile=..\assets\app.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
