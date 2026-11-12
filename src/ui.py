@@ -30,7 +30,7 @@ from src.app_paths import (
     get_user_data_dir,
 )
 from src.icons import apply_window_icons
-from src import autostart
+from src import autostart, updater
 from src.hotkeys import GlobalHotkeyManager, canonical_hotkey, display_hotkey
 from src.models import AppSettings, Macro, MacroEvent, WindowTarget
 from src.player import MacroPlayer
@@ -420,10 +420,22 @@ class MacroRecorderApp(ctk.CTk):
 
     def __init__(self, start_hidden: bool = False) -> None:
         super().__init__()
+        # Stay invisible while the window is built, themed and sized, then fade in
+        # (otherwise Windows shows white strips and a visible resize jump on launch).
+        self._start_hidden = start_hidden
+        self._revealed = False
+        self._fade_job: Optional[str] = None
+        try:
+            self.attributes("-alpha", 0.0)
+        except Exception:
+            pass
         self.settings = AppSettings.load(SETTINGS_PATH)
         ctk.set_appearance_mode(self.settings.appearance_mode)
         ctk.set_default_color_theme("blue")
         self._apply_theme_defaults()
+        self._splash: Optional[tk.Toplevel] = None
+        if not start_hidden:
+            self._show_splash()
 
         self.title(f"{APP_NAME} v{APP_VERSION}")
         # Fit smaller / high-DPI screens: never open larger than ~92% of the work area.
@@ -505,7 +517,8 @@ class MacroRecorderApp(ctk.CTk):
         )
 
         self._build_ui()
-        self.after(400, self._fit_min_size)
+        self.after(120, self._fit_min_size)
+        self.after(6000, self._reveal)  # safety net: never stay invisible
         self.lbl_engine_help.configure(text=self.ENGINE_HELP[self.mode_var.get()])
         self.lbl_limit_help.configure(text=self.LIMIT_HELP[self.limit_var.get()])
         self._apply_treeview_style()
@@ -517,6 +530,9 @@ class MacroRecorderApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_window_close)
         self.attributes("-topmost", bool(self.settings.always_on_top))
         self.after(100, self._tick)
+        self._update_info: Optional[updater.UpdateInfo] = None
+        self._updating = False
+        self.after(6000, self._auto_update_check)
         if start_hidden:
             self.after(0, self.withdraw)
 
@@ -1335,9 +1351,18 @@ class MacroRecorderApp(ctk.CTk):
             "Keep Ghost above other windows.",
             self.settings.always_on_top,
         )
-        self._ghost_button(tab, "📂  Open macros folder", self.open_macros_folder, width=180).grid(
-            row=9, column=0, padx=8, pady=(12, 0), sticky="w"
+        self.sw_updates = self._option(
+            tab, 9, "Tell me when a new version is out",
+            "Asks GitHub once a day. Nothing about you is sent.",
+            self.settings.check_updates,
         )
+        buttons = ctk.CTkFrame(tab, fg_color="transparent")
+        buttons.grid(row=11, column=0, padx=8, pady=(12, 0), sticky="w")
+        self._ghost_button(buttons, "📂  Open macros folder", self.open_macros_folder, width=170).pack(side="left")
+        self.btn_check_updates = self._ghost_button(
+            buttons, "⟳  Check for updates", lambda: self.check_for_updates(manual=True), width=170
+        )
+        self.btn_check_updates.pack(side="left", padx=(8, 0))
 
     # ------------------------------------------------------------------
     # Hotkey capture
@@ -1500,6 +1525,23 @@ class MacroRecorderApp(ctk.CTk):
             anchor="w",
         )
         self.lbl_footer.grid(row=0, column=0, sticky="w")
+        # Shown in place of the footer hint when a newer version is out
+        self.update_bar = ctk.CTkFrame(footer, fg_color=C["panel"], corner_radius=10, border_width=1,
+                                       border_color=C["accent"])
+        self.lbl_update = ctk.CTkLabel(self.update_bar, text="", font=self._font(12, "bold"), text_color=C["text"])
+        self.lbl_update.pack(side="left", padx=(12, 10), pady=4)
+        self.btn_update = ctk.CTkButton(
+            self.update_bar, text="Update now", command=self.start_update, width=110, height=28,
+            corner_radius=8, fg_color=C["accent"], hover_color=C["accent_hover"],
+            text_color="#0c0d10", font=self._font(12, "bold"),
+        )
+        self.btn_update.pack(side="left", padx=(0, 6), pady=4)
+        self.btn_update_notes = self._ghost_button(self.update_bar, "What's new", self._open_update_page, width=90)
+        self.btn_update_notes.configure(height=28)
+        self.btn_update_notes.pack(side="left", padx=(0, 6), pady=4)
+        self.btn_update_skip = self._ghost_button(self.update_bar, "Skip", self._skip_update, width=56)
+        self.btn_update_skip.configure(height=28)
+        self.btn_update_skip.pack(side="left", padx=(0, 8), pady=4)
         caps = ctk.CTkFrame(footer, fg_color="transparent")
         caps.grid(row=0, column=1, sticky="e")
         self.footer_caps: list[tuple[ctk.CTkLabel, str]] = []
@@ -1830,6 +1872,38 @@ class MacroRecorderApp(ctk.CTk):
         self._on_settings_changed()
 
     def _on_theme_changed(self, value: str) -> None:
+        # Lay a plain panel over the window, repaint every widget underneath it, then
+        # fade the panel away, so nobody sees widgets switching colour one at a time.
+        cover = self._cover_window() if self._revealed and self.state() == "normal" else None
+        self._apply_theme(value)
+        if cover is not None:
+            self.update_idletasks()
+            self._fade_out_cover(cover)
+
+    def _cover_window(self) -> Optional[tk.Toplevel]:
+        try:
+            cover = tk.Toplevel(self)
+            cover.overrideredirect(True)
+            cover.configure(bg=col("bg"))
+            cover.geometry(f"{self.winfo_width()}x{self.winfo_height()}+{self.winfo_rootx()}+{self.winfo_rooty()}")
+            cover.attributes("-topmost", True)
+            cover.update()
+            return cover
+        except Exception:
+            return None
+
+    def _fade_out_cover(self, cover: tk.Toplevel, alpha: float = 1.0) -> None:
+        alpha -= 0.12
+        try:
+            if alpha <= 0:
+                cover.destroy()
+                return
+            cover.attributes("-alpha", alpha)
+        except Exception:
+            return
+        self.after(16, self._fade_out_cover, cover, alpha)
+
+    def _apply_theme(self, value: str) -> None:
         self.settings.appearance_mode = value
         ctk.set_appearance_mode(value)
         if hasattr(self, "theme_var") and self.theme_var.get() != value:
@@ -1859,6 +1933,7 @@ class MacroRecorderApp(ctk.CTk):
         self.settings.on_finish = self.ON_FINISH.get(self.finish_var.get(), "none")
         self.settings.always_on_top = bool(self.sw_on_top.get())
         self.attributes("-topmost", self.settings.always_on_top)
+        self.settings.check_updates = bool(self.sw_updates.get())
 
         try:
             self.settings.repeat_count = max(0, int(self.repeat_var.get().strip()))
@@ -2286,10 +2361,139 @@ class MacroRecorderApp(ctk.CTk):
         )
 
     # ------------------------------------------------------------------
+    # Updates
+    # ------------------------------------------------------------------
+    def _auto_update_check(self) -> None:
+        if self._is_closing:
+            return
+        due = time.time() - self.settings.last_update_check >= updater.CHECK_EVERY
+        if self.settings.check_updates and due and self._update_info is None:
+            self.check_for_updates(manual=False)
+        self.after(3600 * 1000, self._auto_update_check)  # look again in an hour (checks stay once a day)
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        if self._updating:
+            return
+        if manual:
+            self.btn_check_updates.configure(text="Checking…", state="disabled")
+
+        def work() -> None:
+            info, error = None, ""
+            try:
+                info = updater.check_latest()
+            except Exception:  # offline, GitHub down, rate limit...
+                error = "Couldn't reach GitHub. Check your internet connection and try again."
+            self.after(0, lambda: self._on_update_result(info, error, manual))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_update_result(self, info: Optional[updater.UpdateInfo], error: str, manual: bool) -> None:
+        self.btn_check_updates.configure(text="⟳  Check for updates", state="normal")
+        if not error:
+            self.settings.last_update_check = time.time()
+            self.settings.save(SETTINGS_PATH)
+        if error:
+            if manual:
+                messagebox.showwarning("Check for updates", error, parent=self)
+            return
+        if info is None:
+            if manual:
+                messagebox.showinfo(
+                    "Check for updates", f"You have the newest version ({APP_VERSION}).", parent=self
+                )
+            return
+        if not manual and info.version == self.settings.skipped_version:
+            return
+        self._update_info = info
+        self._show_update_bar(info)
+        if not manual:
+            self.tray.notify(
+                f"{APP_NAME} {info.version} is available",
+                "Open Ghost and click Update now. Your macros and settings stay.",
+            )
+
+    def _show_update_bar(self, info: updater.UpdateInfo) -> None:
+        size = f" · {info.size / 1e6:.1f} MB" if info.size else ""
+        self.lbl_update.configure(text=f"✨  Version {info.version} is available{size}")
+        self.btn_update.configure(text="Update now", state="normal")
+        self.lbl_footer.grid_remove()
+        self.update_bar.grid(row=0, column=0, sticky="w")
+
+    def _hide_update_bar(self) -> None:
+        self.update_bar.grid_remove()
+        self.lbl_footer.grid()
+
+    def _skip_update(self) -> None:
+        if self._update_info and not self._updating:
+            self.settings.skipped_version = self._update_info.version
+            self.settings.save(SETTINGS_PATH)
+            self._update_info = None
+            self._hide_update_bar()
+
+    def _open_update_page(self) -> None:
+        import webbrowser
+
+        webbrowser.open(self._update_info.page_url if self._update_info else updater.RELEASES_PAGE)
+
+    def start_update(self) -> None:
+        info = self._update_info
+        if info is None or self._updating:
+            return
+        if self.recorder.is_recording or self.player.is_playing:
+            messagebox.showinfo("Update", "Stop recording or playback first, then click Update now.", parent=self)
+            return
+        if not self._confirm_discard("update"):
+            return
+        self._updating = True
+        self.btn_update.configure(state="disabled", text="Downloading…")
+        self.btn_update_skip.configure(state="disabled")
+
+        def progress(fraction: float) -> None:
+            self.after(0, lambda: self.lbl_update.configure(
+                text=f"⬇  Downloading version {info.version}… {int(fraction * 100)}%"))
+
+        def work() -> None:
+            try:
+                path = updater.download(info, progress, should_stop=lambda: self._is_closing)
+                self.after(0, lambda: self._install_update(path))
+            except Exception as exc:
+                msg = str(exc) if isinstance(exc, RuntimeError) else "The download failed. Check your connection."
+                self.after(0, lambda: self._update_failed(msg))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _install_update(self, path: Path) -> None:
+        self.lbl_update.configure(text="Installing… Ghost will close and open again.")
+        self.update_idletasks()
+        try:
+            updater.run_installer(path)
+        except Exception as exc:
+            self._update_failed(f"{exc} You can download it from the website instead.")
+            return
+        # The installer replaces the files; get out of its way. It reopens Ghost when done.
+        self.after(600, self.quit_app)
+
+    def _update_failed(self, message: str) -> None:
+        self._updating = False
+        self.btn_update.configure(state="normal", text="Try again")
+        self.btn_update_skip.configure(state="normal")
+        if self._update_info:
+            self.lbl_update.configure(text=f"✨  Version {self._update_info.version} is available")
+        messagebox.showwarning("Update", message, parent=self)
+
+    # ------------------------------------------------------------------
     # Tray & Lifecycle
     # ------------------------------------------------------------------
     def show_from_tray(self) -> None:
+        hidden = self.state() != "normal"
+        self._revealed = True
+        if hidden:
+            try:
+                self.attributes("-alpha", 0.0)
+            except Exception:
+                pass
         self.deiconify()
+        self.after(20, lambda: self._fade(1.0, 180 if hidden else 1))
         self.state("normal")
         self.lift()
         self.focus_force()
@@ -2347,6 +2551,105 @@ class MacroRecorderApp(ctk.CTk):
             self._place_summary()
         except Exception:
             pass
+        self.after(30, self._reveal)
+
+    # ------------------------------------------------------------------
+    # Smooth window transitions
+    # ------------------------------------------------------------------
+    def _fade(self, target: float, ms: int = 160, then=None) -> None:
+        """Animate the window's opacity to `target` (0..1) with an ease-out curve."""
+        if self._fade_job:
+            self.after_cancel(self._fade_job)
+            self._fade_job = None
+        try:
+            start = float(self.attributes("-alpha"))
+        except Exception:
+            start = 1.0
+        steps = max(1, ms // 12)
+
+        def step(i: int = 1) -> None:
+            t = i / steps
+            eased = 1 - (1 - t) ** 3
+            try:
+                self.attributes("-alpha", start + (target - start) * eased)
+            except Exception:
+                pass
+            if i < steps:
+                self._fade_job = self.after(12, step, i + 1)
+            else:
+                self._fade_job = None
+                if then:
+                    then()
+
+        step()
+
+    def _show_splash(self) -> None:
+        """A small loading card that appears instantly while the main window is built."""
+        try:
+            bg, line, text, muted = col("panel"), col("line"), col("text"), col("muted")
+            splash = tk.Toplevel(self)
+            splash.overrideredirect(True)
+            splash.configure(bg=bg, highlightthickness=1, highlightbackground=line)
+            splash.attributes("-topmost", True)
+            scale = self._get_window_scaling()
+            w, h = int(340 * scale), int(210 * scale)
+            x = (self.winfo_screenwidth() - w) // 2
+            y = (self.winfo_screenheight() - h) // 2 - int(40 * scale)
+            splash.geometry(f"{w}x{h}+{x}+{y}")
+            logo = get_resource_path("assets/icon_ui.png")
+            if not logo.exists():
+                logo = get_resource_path("assets/icon.png")
+            if logo.exists():
+                from PIL import Image, ImageTk
+
+                size = int(72 * scale)
+                self._splash_img = ImageTk.PhotoImage(Image.open(logo).resize((size, size), Image.LANCZOS))
+                tk.Label(splash, image=self._splash_img, bg=bg).pack(pady=(int(30 * scale), int(10 * scale)))
+            tk.Label(splash, text=APP_NAME, bg=bg, fg=text, font=("Segoe UI Semibold", 14)).pack()
+            tk.Label(splash, text="Loading…", bg=bg, fg=muted, font=("Segoe UI", 10)).pack(pady=(2, 0))
+            try:  # Windows 11: rounded corners like a normal window
+                hwnd = ctypes.windll.user32.GetParent(splash.winfo_id()) or splash.winfo_id()
+                pref = ctypes.c_int(2)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(pref), ctypes.sizeof(pref))
+            except Exception:
+                pass
+            splash.update()
+            self._splash = splash
+        except Exception:
+            self._splash = None
+
+    def _close_splash(self) -> None:
+        splash, self._splash = self._splash, None
+        if splash is None:
+            return
+
+        def step(alpha: float = 1.0) -> None:
+            alpha -= 0.2
+            if alpha <= 0:
+                try:
+                    splash.destroy()
+                except Exception:
+                    pass
+                return
+            try:
+                splash.attributes("-alpha", alpha)
+            except Exception:
+                pass
+            self.after(16, step, alpha)
+
+        step()
+
+    def _reveal(self) -> None:
+        """First appearance: fade in once everything is drawn at its final size."""
+        if self._revealed or self._is_closing:
+            return
+        self._revealed = True
+        if self._start_hidden:
+            self.attributes("-alpha", 1.0)  # stays withdrawn in the tray
+            return
+        self.update_idletasks()
+        self._fade(1.0, 220)
+        self.after(120, self._close_splash)
 
     def _apply_icons(self) -> None:
         try:
@@ -2363,6 +2666,12 @@ class MacroRecorderApp(ctk.CTk):
 
     def quit_app(self) -> None:
         self._is_closing = True
+        if self._splash is not None:
+            try:
+                self._splash.destroy()
+            except Exception:
+                pass
+            self._splash = None
         self.recorder.stop()
         self.player.stop()
         self.hotkeys.stop()

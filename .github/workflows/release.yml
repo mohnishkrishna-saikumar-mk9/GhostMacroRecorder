@@ -28,6 +28,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      # A tag like v1.2.3 becomes the app's version everywhere (in-app update checks compare it).
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          IFS=. read -r A B C <<< "$V"; A=${A:-0}; B=${B:-0}; C=${C:-0}
+          sed -i -E "s/^APP_VERSION = \".*\"/APP_VERSION = \"$V\"/" src/app_paths.py
+          sed -i -E "s/^#define AppVersion \".*\"/#define AppVersion \"$V\"/" installer/GhostMacroRecorder.iss
+          sed -i -E "s/(file|prod)vers=\([0-9, ]+\)/\1vers=($A, $B, $C, 0)/; s/u'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'/u'$A.$B.$C.0'/" version_info.txt
+          grep -n "APP_VERSION =" src/app_paths.py; grep -n "AppVersion \"" installer/GhostMacroRecorder.iss
+
       - name: Run unit tests
         run: python -m pytest -q
 

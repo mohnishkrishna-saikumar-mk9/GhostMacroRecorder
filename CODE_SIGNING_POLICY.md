@@ -48,7 +48,9 @@ All team members use multi-factor authentication for GitHub and SignPath.
 This program will not transfer any information to other networked systems unless specifically
 requested by the user or the person installing or operating it.
 
-Ghost Macro Recorder works fully offline. It has no network code, analytics or telemetry. Settings and
+Ghost Macro Recorder has no analytics or telemetry. Its only network request is an optional update check
+(about once a day) to GitHub's public releases API; it sends no personal data and can be switched off in
+*Settings → App*. Updates are downloaded and installed only when the user clicks **Update now**. Settings and
 saved macros are stored only on your own PC in `%APPDATA%\GhostMacroRecorder`. See [SECURITY.md](SECURITY.md).
 
 ## Uninstalling

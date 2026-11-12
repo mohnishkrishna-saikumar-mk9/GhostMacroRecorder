@@ -218,6 +218,9 @@ class AppSettings:
     on_finish: str = "none"  # "none" | "notify" | "sound"
     always_on_top: bool = False
     appearance_mode: str = "Dark"
+    check_updates: bool = True  # ask GitHub (about once a day) whether a newer version exists
+    last_update_check: float = 0.0  # unix time of the last automatic check
+    skipped_version: str = ""  # "Skip this version" was chosen for this one
 
     def save(self, path: str | Path) -> Path:
         target_path = Path(path)

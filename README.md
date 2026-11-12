@@ -26,7 +26,7 @@
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-4cc9f0?style=flat-square&logo=windows&logoColor=white" alt="Windows 10 and 11">
   <a href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/release.yml?style=flat-square&label=build" alt="Build status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b388ff?style=flat-square" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/100%25-offline-868d98?style=flat-square" alt="100% offline">
+  <img src="https://img.shields.io/badge/no-telemetry-868d98?style=flat-square" alt="No telemetry">
 </p>
 
 <p align="center">
@@ -120,7 +120,9 @@ No Python or anything else needs to be installed separately.
 
 ## 🔒 Privacy
 
-Ghost Macro Recorder runs **100% offline**. It has no network access, analytics or telemetry. It only listens to
+Ghost Macro Recorder has **no analytics or telemetry**. Its only network request is an optional update check:
+about once a day it asks GitHub which version is newest (nothing about you or your macros is sent), and you
+can switch it off in *Settings → App*. It only listens to
 input **while you are recording**, skips password fields and Windows security prompts, and only writes macro files
 when you save them. See [SECURITY.md](SECURITY.md) for details.
 
