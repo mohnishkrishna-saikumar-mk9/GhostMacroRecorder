@@ -517,6 +517,11 @@ class MacroRecorderApp(ctk.CTk):
         )
 
         self._build_ui()
+        # Maximize / restore: hide the widget-by-widget redraw behind a plain panel
+        self._resize_cover = tk.Frame(self, bg=col("bg"), bd=0, highlightthickness=0)
+        self._resize_cover_job: Optional[str] = None
+        self._last_size = (0, 0)
+        self.bind("<Configure>", self._on_root_configure, add="+")
         self.after(120, self._fit_min_size)
         self.after(6000, self._reveal)  # safety net: never stay invisible
         self.lbl_engine_help.configure(text=self.ENGINE_HELP[self.mode_var.get()])
@@ -881,10 +886,15 @@ class MacroRecorderApp(ctk.CTk):
         steps_head = ctk.CTkFrame(steps, fg_color="transparent")
         steps_head.grid(row=0, column=0, padx=18, pady=(14, 8), sticky="ew")
         steps_head.grid_columnconfigure(0, weight=1)
+        title = ctk.CTkFrame(steps_head, fg_color="transparent")
+        title.grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
-            steps_head, text="Steps", font=self._font(15, "bold", self.sans_display),
+            title, text="Steps", font=self._font(15, "bold", self.sans_display),
             text_color=C["text"],
-        ).grid(row=0, column=0, sticky="w")
+        ).pack(side="left")
+        ctk.CTkLabel(
+            title, text="drag to select many · Del removes", font=self._font(10), text_color=C["muted"],
+        ).pack(side="left", padx=(10, 0), pady=(3, 0))
 
         legend = ctk.CTkFrame(steps_head, fg_color="transparent")
         legend.grid(row=0, column=1, sticky="e", padx=(0, 10))
@@ -932,6 +942,18 @@ class MacroRecorderApp(ctk.CTk):
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns", padx=(4, 0))
+        # Select many steps at once: drag over them (the list scrolls at its edges),
+        # Shift/Ctrl+click, Ctrl+A for all; Delete removes the selection.
+        self._drag_anchor: Optional[str] = None
+        self._drag_scroll_job: Optional[str] = None
+        self._drag_y = 0
+        self.tree.bind("<ButtonPress-1>", self._on_tree_press, add="+")
+        self.tree.bind("<B1-Motion>", self._on_tree_drag, add="+")
+        self.tree.bind("<ButtonRelease-1>", self._on_tree_release, add="+")
+        self.tree.bind("<Delete>", lambda _e: self.delete_selected_events())
+        self.tree.bind("<BackSpace>", lambda _e: self.delete_selected_events())
+        self.tree.bind("<Control-a>", self._select_all_steps)
+        self.tree.bind("<Control-A>", self._select_all_steps)
 
         self.lbl_empty = ctk.CTkLabel(
             tree_container,
@@ -2271,6 +2293,67 @@ class MacroRecorderApp(ctk.CTk):
         if self._confirm_discard("quit"):
             self.quit_app()
 
+    # --- steps list: drag-select -------------------------------------
+    def _on_tree_press(self, event) -> None:
+        self.tree.focus_set()
+        if event.state & 0x0005:  # Shift / Ctrl: let the list's own range/toggle click work
+            self._drag_anchor = None
+            return
+        if self.tree.identify_region(event.x, event.y) == "heading":
+            self._drag_anchor = None
+            return
+        self._drag_anchor = self.tree.identify_row(event.y) or None
+
+    def _select_range_to(self, row: str) -> None:
+        if not self._drag_anchor or not row:
+            return
+        items = self.tree.get_children()
+        try:
+            a, b = items.index(self._drag_anchor), items.index(row)
+        except ValueError:
+            return
+        lo, hi = min(a, b), max(a, b)
+        self.tree.selection_set(items[lo:hi + 1])
+        self.tree.focus(row)
+
+    def _on_tree_drag(self, event) -> str | None:
+        if not self._drag_anchor:
+            return None
+        self._drag_y = event.y
+        height = self.tree.winfo_height()
+        if event.y < 4 or event.y > height - 4:
+            if self._drag_scroll_job is None:
+                self._drag_autoscroll()
+        else:
+            self._select_range_to(self.tree.identify_row(event.y))
+        return "break"  # stop the default handler from moving the anchor
+
+    def _drag_autoscroll(self) -> None:
+        self._drag_scroll_job = None
+        if not self._drag_anchor:
+            return
+        height = self.tree.winfo_height()
+        if self._drag_y < 4:
+            self.tree.yview_scroll(-1, "units")
+            row = self.tree.identify_row(6)
+        elif self._drag_y > height - 4:
+            self.tree.yview_scroll(1, "units")
+            row = self.tree.identify_row(height - 6)
+        else:
+            return
+        self._select_range_to(row)
+        self._drag_scroll_job = self.after(40, self._drag_autoscroll)
+
+    def _on_tree_release(self, _event) -> None:
+        self._drag_anchor = None
+        if self._drag_scroll_job:
+            self.after_cancel(self._drag_scroll_job)
+            self._drag_scroll_job = None
+
+    def _select_all_steps(self, _event=None) -> str:
+        self.tree.selection_set(self.tree.get_children())
+        return "break"
+
     def delete_selected_events(self) -> None:
         if self.recorder.is_recording or self.player.is_playing:
             return
@@ -2582,6 +2665,29 @@ class MacroRecorderApp(ctk.CTk):
                     then()
 
         step()
+
+    def _on_root_configure(self, event) -> None:
+        if event.widget is not self:
+            return
+        size = (event.width, event.height)
+        old, self._last_size = self._last_size, size
+        if not self._revealed or old == (0, 0) or size == old:
+            return
+        jump = abs(size[0] - old[0]) > 120 or abs(size[1] - old[1]) > 120
+        if jump and not self._resize_cover.winfo_ismapped():
+            # A big jump = maximize/restore/snap. Cover now, uncover once the layout settled.
+            self._resize_cover.configure(bg=col("bg"))
+            self._resize_cover.place(x=0, y=0, relwidth=1, relheight=1)
+            self._resize_cover.lift()
+        if self._resize_cover.winfo_ismapped() or jump:
+            if self._resize_cover_job:
+                self.after_cancel(self._resize_cover_job)
+            self._resize_cover_job = self.after(140, self._uncover_after_resize)
+
+    def _uncover_after_resize(self) -> None:
+        self._resize_cover_job = None
+        self.update_idletasks()  # finish every widget's redraw behind the cover
+        self._resize_cover.place_forget()
 
     def _show_splash(self) -> None:
         """A small loading card that appears instantly while the main window is built."""
