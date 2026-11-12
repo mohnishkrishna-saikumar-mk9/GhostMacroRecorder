@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Questions inbox: Ghost Macro Recorder</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<meta name="theme-color" content="#0c0d10">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400..700&family=Funnel+Sans:wght@400..600&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; --bg: #0c0d10; --panel: #14161a; --line: #262a31; --ink: #e7e9ec; --muted: #8a919c; --amber: #ffb020; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 "Funnel Sans", system-ui, sans-serif; }
+  main { width: min(100% - 48px, 860px); margin: 0 auto; padding: 64px 0 120px; }
+  h1 { font: 400 clamp(32px, 4vw, 44px)/1.1 "Funnel Display", system-ui, sans-serif; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 32px 0; }
+  label { display: grid; gap: 6px; font-size: 14px; font-weight: 500; flex: 1 1 260px; }
+  input { height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; }
+  button { height: 44px; padding: 0 20px; border-radius: 10px; border: 0; font: 500 16px "Funnel Sans", system-ui, sans-serif; cursor: pointer; background: var(--amber); color: #0c0d10; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); height: 36px; padding: 0 14px; font-size: 14px; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  #status { min-height: 1.6em; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  li { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 18px 20px; }
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; align-items: center; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .q { white-space: pre-wrap; margin: 0; }
+  a { color: var(--amber); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Questions inbox</h1>
+  <p class="muted">Questions sent from the Help page. This page is private: it only shows anything with the admin key you set in Cloudflare.</p>
+
+  <form id="login">
+    <label for="key">Admin key<input id="key" type="password" autocomplete="current-password" required></label>
+    <button type="submit">Show questions</button>
+  </form>
+  <p id="status" role="status" class="muted"></p>
+  <ol id="list"></ol>
+</main>
+<script>
+  const form = document.getElementById('login');
+  const keyInput = document.getElementById('key');
+  const list = document.getElementById('list');
+  const status = document.getElementById('status');
+  keyInput.value = sessionStorage.getItem('ghost-admin-key') || '';
+
+  const api = (method, query = '') =>
+    fetch('/api/questions' + query, { method, headers: { Authorization: 'Bearer ' + keyInput.value } });
+
+  async function load() {
+    status.textContent = 'Loading';
+    list.replaceChildren();
+    let res;
+    try { res = await api('GET'); } catch { status.textContent = 'Could not reach the site. Is it live on Cloudflare?'; return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = data.error || `Error ${res.status}`; return; }
+    sessionStorage.setItem('ghost-admin-key', keyInput.value);
+    const items = data.items || [];
+    status.textContent = items.length ? `${items.length} question${items.length === 1 ? '' : 's'}, newest first.` : 'No questions yet.';
+    for (const item of items) {
+      const li = document.createElement('li');
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const when = document.createElement('span');
+      when.textContent = new Date(item.at).toLocaleString();
+      meta.append(when);
+      if (item.email) {
+        const mail = document.createElement('a');
+        mail.href = 'mailto:' + item.email + '?subject=' + encodeURIComponent('Your question about Ghost Macro Recorder');
+        mail.textContent = item.email;
+        meta.append(mail);
+      }
+      const del = document.createElement('button');
+      del.className = 'ghost'; del.type = 'button'; del.textContent = 'Delete';
+      del.addEventListener('click', async () => {
+        if (!confirm('Delete this question? This cannot be undone.')) return;
+        const r = await api('DELETE', '?id=' + encodeURIComponent(item.id));
+        if (r.ok) li.remove(); else status.textContent = 'Could not delete it.';
+      });
+      meta.append(del);
+      const q = document.createElement('p'); q.className = 'q'; q.textContent = item.question;
+      li.append(meta, q);
+      list.append(li);
+    }
+  }
+  form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
+  if (keyInput.value) load();
+</script>
+</body>
+</html>

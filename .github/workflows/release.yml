@@ -47,6 +47,16 @@ jobs:
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc installer\GhostMacroRecorder.iss
 
+      # Release notes = the tag's message, e.g.  git tag -a v1.0.2 -m "Fixes X" -m "- Adds Y"
+      # The website's Releases page shows these lines.
+      - name: Read release notes from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          git fetch --force origin "${GITHUB_REF}:${GITHUB_REF}"
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" | sed '/-----BEGIN PGP/,$d' > release-notes.md
+          cat release-notes.md
+
       - name: Upload unsigned installer
         id: upload-unsigned
         uses: actions/upload-artifact@v4
@@ -75,11 +85,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: signed/GhostMacroRecorder-Setup.exe
-          generate_release_notes: true
+          body_path: release-notes.md
 
       - name: Publish GitHub Release (unsigned)
         if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID == ''
         uses: softprops/action-gh-release@v2
         with:
           files: dist/GhostMacroRecorder-Setup.exe
-          generate_release_notes: true
+          body_path: release-notes.md
