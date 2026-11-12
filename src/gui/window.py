@@ -426,12 +426,13 @@ class MainWindow(QMainWindow):
         self.seg_scope = Segmented(["This window only", "Every window"], height=36)
         self.seg_scope.setFixedWidth(270)
         self.seg_scope.changed.connect(self._on_settings_changed)
-        g.addWidget(self.seg_scope, 1, 1, Qt.AlignLeft)
+        scope_row = QHBoxLayout()
+        scope_row.setSpacing(14)
+        scope_row.addWidget(self.seg_scope, 0, Qt.AlignVCenter)
         self.lbl_target_hint = label("", "hint", wrap=True)
-        g.addWidget(self.lbl_target_hint, 1, 1, 1, 3)
+        scope_row.addWidget(self.lbl_target_hint, 1)
+        g.addLayout(scope_row, 1, 1, 1, 3)
         g.setColumnStretch(1, 1)
-        # the hint sits to the right of the scope switch
-        self.lbl_target_hint.setContentsMargins(284, 0, 0, 0)
         return strip
 
     def _build_steps(self) -> QFrame:
