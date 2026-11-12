@@ -3,39 +3,29 @@
 # Produces a one-folder app in dist\GhostMacroRecorder\ which the Inno Setup
 # installer (installer\GhostMacroRecorder.iss) copies into C:\Program Files.
 
-from PyInstaller.utils.hooks import collect_all
-
-ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all("customtkinter")
-
-hiddenimports = list(
-    set(
-        ctk_hiddenimports
-        + [
-            "pynput.keyboard._win32",
-            "pynput.mouse._win32",
-            "pystray._win32",
-            "PIL._tkinter_finder",
-        ]
-    )
-)
+hiddenimports = [
+    "pynput.keyboard._win32",
+    "pynput.mouse._win32",
+]
 
 # Only ship the runtime assets (not the large source artwork)
 app_assets = [
     ("assets/app.ico", "assets"),
     ("assets/icon.png", "assets"),
     ("assets/icon_small.png", "assets"),
+    ("assets/icon_ui.png", "assets"),
 ]
 
 a = Analysis(
     ["main.py"],
     pathex=["."],
-    binaries=ctk_binaries,
-    datas=ctk_datas + app_assets,
+    binaries=[],
+    datas=app_assets,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["pytest", "_pytest", "numpy"],
+    excludes=["pytest", "_pytest", "numpy", "tkinter", "customtkinter", "pystray"],
     noarchive=False,
 )
 

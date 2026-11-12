@@ -1,6 +1,6 @@
 """Crisp app icons everywhere: window title bar, taskbar, Alt+Tab and tray.
 
-Tk and pystray both hand Windows a single icon image that Windows then
+Some toolkits hand Windows a single icon image that Windows then
 stretches, which looks blurry on high-DPI screens. Here we load the multi-size
 assets/app.ico at the *exact* pixel size Windows wants for the current DPI.
 """
@@ -127,7 +127,7 @@ def build_state_ico(state: str) -> Path:
 
 
 def tray_icon_handle(state: str) -> int:
-    """A *fresh* HICON for the tray (pystray destroys it when the icon changes)."""
+    """A *fresh* HICON for the tray (the caller owns and destroys it)."""
     path = build_state_ico(state)
     size = tray_icon_size()
     return user32.LoadImageW(None, str(path), IMAGE_ICON, size, size, LR_LOADFROMFILE) or 0

@@ -13,7 +13,7 @@ APP_SLUG = "GhostMacroRecorder"
 APP_ID = "GhostMacroRecorder.Desktop.1"
 APP_TAGLINE = "Record Once. Run in the Background."
 LEGACY_SLUG = "BackgroundMacroRecorder"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.0"
 
 
 def get_resource_path(relative_path: str) -> Path:
