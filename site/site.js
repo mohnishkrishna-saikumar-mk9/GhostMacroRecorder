@@ -100,9 +100,22 @@ if (search) {
       el.hidden = !hit;
       if (hit) { shown += 1; if (words.length) el.open = true; }
     });
-    status.textContent = !words.length ? '' : shown
-      ? `${shown} ${shown === 1 ? 'answer matches' : 'answers match'}.`
-      : `No answer matches "${search.value.trim()}". Ask it below and it will be answered.`;
+    const empty = document.getElementById('faq-empty');
+    const none = words.length > 0 && shown === 0;
+    if (empty) {
+      empty.hidden = !none;
+      document.getElementById('faq-empty-term').textContent = search.value.trim();
+    }
+    status.textContent = !words.length || none ? '' : `${shown} ${shown === 1 ? 'answer matches' : 'answers match'}.`;
+  });
+  // "Ask this question": copy the search into the form's title and take the visitor there
+  document.getElementById('faq-ask')?.addEventListener('click', () => {
+    const title = document.getElementById('q-title');
+    if (!title) return;
+    title.value = search.value.trim().slice(0, 150);
+    document.getElementById('ask').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const details = document.getElementById('q-text');
+    setTimeout(() => { details.focus({ preventScroll: true }); details.classList.add('flash'); setTimeout(() => details.classList.remove('flash'), 1300); }, 450);
   });
 }
 

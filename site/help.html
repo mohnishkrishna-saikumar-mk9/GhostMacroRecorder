@@ -40,11 +40,62 @@
   <div class="wrap">
     <span class="eyebrow">Help</span>
     <h1>How can we <span class="accent">help?</span></h1>
-    <p>Search the answers below, or send a question and it will be answered here.</p>
+    <p>Ask your own question, or search the answers people needed before you.</p>
+  </div>
+</section>
+
+<section class="section--tight" id="ask">
+  <div class="wrap split">
+    <div>
+      <h2>Ask a question</h2>
+      <p class="muted" style="margin-top:14px">Your question goes straight to the developer. Answers that help others are added to the list below.</p>
+      <p class="muted">Leave an email only if you want a reply by email. See the <a class="link" href="privacy.html">privacy page</a>.</p>
+      <p class="muted">Found a bug? <a class="link" href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/issues">Report it on GitHub</a>.</p>
+    </div>
+    <form class="card form" id="ask-form" novalidate>
+      <div class="field"><label for="q-title">Title</label>
+        <input id="q-title" name="title" type="text" required minlength="5" maxlength="150" aria-describedby="q-title-err" placeholder="Short summary, e.g. Hotkeys stop working in games">
+        <p class="err" id="q-title-err" hidden>Write a title of at least 5 characters.</p></div>
+      <div class="field"><label for="q-text">Details</label>
+        <textarea id="q-text" name="question" required minlength="5" maxlength="2000" aria-describedby="q-text-err" placeholder="What you tried, what happened, your Windows version..."></textarea>
+        <p class="err" id="q-text-err" hidden>Describe your question, at least 5 characters.</p></div>
+      <div class="field"><label for="q-email">Email for a reply (optional)</label>
+        <input id="q-email" name="email" type="email" autocomplete="email" maxlength="200" aria-describedby="q-email-err">
+        <p class="err" id="q-email-err" hidden>Write an email address with an @, or leave it empty.</p></div>
+      <div class="hp" aria-hidden="true"><label for="q-site">Website</label><input id="q-site" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+      <div><button class="btn btn--primary" type="submit">Send question<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+      <p class="form-status" role="status"></p>
+    </form>
+  </div>
+</section>
+
+<section class="section--tight" id="answers">
+  <div class="wrap">
+    <div class="section-head"><h2>Common questions</h2></div>
     <label class="search" for="faq-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="sr-only">Search the answers</span>
       <input id="faq-search" type="search" placeholder="Search: Smart App Control, hotkeys, games, update..." autocomplete="off" spellcheck="false" aria-describedby="faq-status">
     </label>
     <p class="search-status" id="faq-status" role="status"></p>
+    <div class="empty-card" id="faq-empty" hidden>
+      <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+      <div>
+        <h3>No answer yet for "<span id="faq-empty-term"></span>"</h3>
+        <p>Nobody has asked this yet. Send it as a question and the answer will be added here.</p>
+      </div>
+      <button class="btn btn--primary btn--sm" type="button" id="faq-ask">Ask this question<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="faq">
+      <details><summary>Is Ghost Macro Recorder free?</summary><div class="answer"><p>Yes. It is free and open source under the MIT licence. There is no account, no advert and no paid version.</p></div></details>
+      <details><summary>Why does Windows block the installer?</summary><div class="answer"><p>New apps that are not code-signed yet are stopped by Smart App Control, and SmartScreen may warn about them. See <a class="link" href="#smart-app-control">Windows blocked the installer</a> at the end of this page.</p></div></details>
+      <details><summary>Does it work in games?</summary><div class="answer"><p>Many games ignore background input. Switch Settings, Play to Foreground, which moves the real mouse and keys, and keep the game window in front.</p></div></details>
+      <details><summary>Can it control apps run as administrator?</summary><div class="answer"><p>Only when Ghost also runs as administrator. Windows blocks input from normal apps to apps that run with admin rights.</p></div></details>
+      <details><summary>Why doesn't a hotkey work?</summary><div class="answer"><p>Another program owns that key. Settings, Keys marks it as taken; click the warning to switch to a free key, or click the box and press a different key.</p></div></details>
+      <details><summary>Does it send my data anywhere?</summary><div class="answer"><p>No. Ghost has no network code and no telemetry. It only listens to input while you record and never records password fields.</p></div></details>
+      <details><summary>Where are my macros saved?</summary><div class="answer"><p>As .json files in <code>%APPDATA%\GhostMacroRecorder\macros</code>. Settings, App, Open macros folder takes you there.</p></div></details>
+      <details><summary>How do I update to a new version?</summary><div class="answer"><p>Download the newest installer from the <a class="link" href="releases.html">Releases</a> page and run it. Settings and macros stay.</p></div></details>
+      <details><summary>How do I uninstall it?</summary><div class="answer"><p>Windows Settings, Apps, Installed apps, Ghost Macro Recorder, Uninstall. Your saved macros stay in AppData in case you reinstall.</p></div></details>
+      <details><summary>Can I run it from source instead?</summary><div class="answer"><p>Yes. Install Python 3.10 or newer, download the code from GitHub and double-click <code>install_and_run.bat</code>.</p></div></details>
+    </div>
   </div>
 </section>
 
@@ -61,46 +112,6 @@ cd GhostMacroRecorder
 install_and_run.bat</pre>
       </div>
     </div>
-  </div>
-</section>
-
-<section class="section--tight">
-  <div class="wrap">
-    <div class="section-head"><h2>Questions and answers</h2></div>
-    <div class="faq">
-      <details><summary>Is Ghost Macro Recorder free?</summary><div class="answer"><p>Yes. It is free and open source under the MIT licence. There is no account, no advert and no paid version.</p></div></details>
-      <details><summary>Why does Windows block the installer?</summary><div class="answer"><p>New apps that are not code-signed yet are stopped by Smart App Control, and SmartScreen may warn about them. See <a class="link" href="#smart-app-control">Windows blocked the installer</a> above for what to do.</p></div></details>
-      <details><summary>Does it work in games?</summary><div class="answer"><p>Many games ignore background input. Switch Settings, Play to Foreground, which moves the real mouse and keys, and keep the game window in front.</p></div></details>
-      <details><summary>Can it control apps run as administrator?</summary><div class="answer"><p>Only when Ghost also runs as administrator. Windows blocks input from normal apps to apps that run with admin rights.</p></div></details>
-      <details><summary>Why doesn't a hotkey work?</summary><div class="answer"><p>Another program owns that key. Settings, Keys marks it as taken; click the warning to switch to a free key, or click the box and press a different key.</p></div></details>
-      <details><summary>Does it send my data anywhere?</summary><div class="answer"><p>No. Ghost has no network code and no telemetry. It only listens to input while you record and never records password fields.</p></div></details>
-      <details><summary>Where are my macros saved?</summary><div class="answer"><p>As .json files in <code>%APPDATA%\GhostMacroRecorder\macros</code>. Settings, App, Open macros folder takes you there.</p></div></details>
-      <details><summary>How do I update to a new version?</summary><div class="answer"><p>Download the newest installer from the <a class="link" href="releases.html">Releases</a> page and run it. Settings and macros stay.</p></div></details>
-      <details><summary>How do I uninstall it?</summary><div class="answer"><p>Windows Settings, Apps, Installed apps, Ghost Macro Recorder, Uninstall. Your saved macros stay in AppData in case you reinstall.</p></div></details>
-      <details><summary>Can I run it from source instead?</summary><div class="answer"><p>Yes. Install Python 3.10 or newer, download the code from GitHub and double-click <code>install_and_run.bat</code>.</p></div></details>
-    </div>
-  </div>
-</section>
-
-<section class="section" id="ask">
-  <div class="wrap split">
-    <div>
-      <h2>Ask a question</h2>
-      <p class="muted" style="margin-top:14px">Not answered above? Your question goes straight to the developer. Answers that help others are added to this page.</p>
-      <p class="muted">Leave an email only if you want a reply by email. See the <a class="link" href="privacy.html">privacy page</a>.</p>
-      <p class="muted">Found a bug? <a class="link" href="https://github.com/mohnishkrishna-saikumar-mk9/GhostMacroRecorder/issues">Report it on GitHub</a>.</p>
-    </div>
-    <form class="card form" id="ask-form" novalidate>
-      <div class="field"><label for="q-text">Your question</label>
-        <textarea id="q-text" name="question" required minlength="5" maxlength="1000" aria-describedby="q-text-err" placeholder="How do I..."></textarea>
-        <p class="err" id="q-text-err" hidden>Write your question, at least 5 characters.</p></div>
-      <div class="field"><label for="q-email">Email for a reply (optional)</label>
-        <input id="q-email" name="email" type="email" autocomplete="email" maxlength="200" aria-describedby="q-email-err">
-        <p class="err" id="q-email-err" hidden>Write an email address with an @, or leave it empty.</p></div>
-      <div class="hp" aria-hidden="true"><label for="q-site">Website</label><input id="q-site" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-      <div><button class="btn btn--primary" type="submit">Send question<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
-      <p class="form-status" role="status"></p>
-    </form>
   </div>
 </section>
 </main>

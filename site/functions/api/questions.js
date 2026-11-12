@@ -9,7 +9,8 @@
 //   ADMIN_TOKEN  a secret: the key you type into admin.html
 // Without them the endpoint answers 503 and the form shows its "not sent" line.
 
-const MAX_QUESTION = 1000;
+const MAX_TITLE = 150;
+const MAX_QUESTION = 2000;
 const MAX_EMAIL = 200;
 const KEEP = 500; // at most this many questions are listed
 
@@ -40,10 +41,14 @@ export async function onRequestPost({ request, env }) {
   // a field people never see: bots fill it in, so pretend it worked and keep nothing
   if (String(form.get('website') || '').trim()) return json({ ok: true }, 201);
 
+  const title = String(form.get('title') || '').trim();
   const question = String(form.get('question') || '').trim();
+  if (title.length < 5 || title.length > MAX_TITLE) {
+    return json({ error: `Write a title of 5 to ${MAX_TITLE} characters.` }, 400);
+  }
   const email = String(form.get('email') || '').trim();
   if (question.length < 5 || question.length > MAX_QUESTION) {
-    return json({ error: `Write a question of 5 to ${MAX_QUESTION} characters.` }, 400);
+    return json({ error: `Describe your question in 5 to ${MAX_QUESTION} characters.` }, 400);
   }
   if (email && (email.length > MAX_EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
     return json({ error: 'Write a valid email address, or leave it empty.' }, 400);
@@ -57,7 +62,7 @@ export async function onRequestPost({ request, env }) {
 
   const at = new Date().toISOString();
   const id = `q:${at}:${crypto.randomUUID().slice(0, 8)}`;
-  await env.QUESTIONS.put(id, JSON.stringify({ question, email, at }));
+  await env.QUESTIONS.put(id, JSON.stringify({ title, question, email, at }));
   return json({ ok: true }, 201);
 }
 

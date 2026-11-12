@@ -28,7 +28,8 @@
   ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
   li { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 18px 20px; }
   .meta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; align-items: center; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
-  .q { white-space: pre-wrap; margin: 0; }
+  .title { font: 500 20px/1.3 "Funnel Display", system-ui, sans-serif; margin: 0 0 6px; }
+  .q { white-space: pre-wrap; margin: 0; color: #b6bcc6; }
   a { color: var(--amber); }
 </style>
 </head>
@@ -72,7 +73,7 @@
       meta.append(when);
       if (item.email) {
         const mail = document.createElement('a');
-        mail.href = 'mailto:' + item.email + '?subject=' + encodeURIComponent('Your question about Ghost Macro Recorder');
+        mail.href = 'mailto:' + item.email + '?subject=' + encodeURIComponent('Re: ' + (item.title || 'your question about Ghost Macro Recorder'));
         mail.textContent = item.email;
         meta.append(mail);
       }
@@ -84,8 +85,9 @@
         if (r.ok) li.remove(); else status.textContent = 'Could not delete it.';
       });
       meta.append(del);
+      const h = document.createElement('h2'); h.className = 'title'; h.textContent = item.title || '(no title)';
       const q = document.createElement('p'); q.className = 'q'; q.textContent = item.question;
-      li.append(meta, q);
+      li.append(meta, h, q);
       list.append(li);
     }
   }
