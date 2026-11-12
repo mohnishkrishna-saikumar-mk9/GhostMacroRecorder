@@ -85,29 +85,88 @@ async function releases() {
 }
 releases();
 
-/* ---------------------------------------------------------------- answer search (Help) */
+/* ---------------------------------------------------------------- answer search (Help)
+   Forgiving search: punctuation and small words are ignored, words match by their stem
+   ("blocked" finds "block"), and the best matches move to the top. */
 const search = document.getElementById('faq-search');
 if (search) {
-  const items = [...document.querySelectorAll('.faq details')];
+  const list = document.querySelector('.faq');
+  const items = [...list.querySelectorAll('details')];
   const status = document.getElementById('faq-status');
-  const norm = (t) => t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
-  const texts = items.map((el) => norm(el.textContent));
-  search.addEventListener('input', () => {
-    const words = norm(search.value).split(/\s+/).filter(Boolean);
-    let shown = 0;
-    items.forEach((el, i) => {
-      const hit = words.every((w) => texts[i].includes(w));
-      el.hidden = !hit;
-      if (hit) { shown += 1; if (words.length) el.open = true; }
-    });
+  const STOP = new Set('a an the is are was be it its to do does did i my me you your how why what when where who which can could should would will in on at of for and or with this that there from by as not no get got'.split(' '));
+  const stem = (w) => w.replace(/(ing|ed|es|s|er|ers)$/, '').slice(0, 6);
+  const raw = (t) => t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .split(/[^a-z0-9]+/).filter((w) => w && !STOP.has(w));
+  const words = (t) => raw(t).map(stem).filter((w) => w.length >= 2);
+  const both = (t) => [...words(t), ...raw(t).filter((w) => w.length >= 2)];
+  const index = items.map((el) => {
+    const sum = el.querySelector('summary');
+    const q = both(sum.textContent);
+    return { el, sum, text: sum.textContent, q, all: new Set([...q, ...both(el.textContent)]) };
+  });
+  const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // light up the words in a question that match what was typed
+  const mark = (it, query, typed) => {
+    it.sum.innerHTML = it.text.split(/(\s+)/).map((part) => {
+      const w = words(part)[0];
+      const r = raw(part)[0];
+      return w && [...query, ...typed].some((q) => like(q, w) || (r && like(q, r))) ? `<mark>${esc(part)}</mark>` : esc(part);
+    }).join('');
+  };
+  // letters of the typed word appear in order inside the other word ("wndws" in "windows")
+  const inOrder = (w, x) => { let i = 0; for (const c of x) { if (c === w[i]) i += 1; if (i === w.length) return true; } return false; };
+  // at most one letter wrong, missing or extra ("blokced", "uninstal")
+  const swapped = (a, b) => {
+    if (a.length !== b.length) return false;
+    const d = [...a].map((c, i) => (c === b[i] ? -1 : i)).filter((i) => i >= 0);
+    return d.length === 2 && d[1] === d[0] + 1 && a[d[0]] === b[d[1]] && a[d[1]] === b[d[0]];
+  };
+  const oneOff = (a, b) => {
+    if (swapped(a, b)) return true;
+    if (Math.abs(a.length - b.length) > 1) return false;
+    let i = 0; let j = 0; let edits = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { i += 1; j += 1; continue; }
+      edits += 1; if (edits > 1) return false;
+      if (a.length > b.length) i += 1; else if (b.length > a.length) j += 1; else { i += 1; j += 1; }
+    }
+    return edits + (a.length - i) + (b.length - j) <= 1;
+  };
+  const like = (w, x) => x === w || x.startsWith(w) || (w.length >= 4 && x.length >= 4 && w.startsWith(x))
+    || (w.length >= 3 && w[0] === x[0] && inOrder(w, x)) || (w.length >= 4 && oneOff(w, x.slice(0, Math.max(w.length, 4))));
+  const hit = (set, w) => set.has(w) || [...set].some((x) => like(w, x));
+  const run = () => {
+    const query = [...new Set(words(search.value))];
+    const typed = [...new Set(raw(search.value).filter((w) => w.length >= 2))];
     const empty = document.getElementById('faq-empty');
-    const none = words.length > 0 && shown === 0;
+    if (!query.length) {
+      index.forEach((it) => { it.el.hidden = false; it.sum.textContent = it.text; list.append(it.el); });
+      if (empty) empty.hidden = true;
+      status.textContent = '';
+      return;
+    }
+    const need = Math.max(1, Math.ceil(query.length / 2));
+    const scored = index.map((it) => {
+      const found = (set, i) => hit(set, query[i]) || (typed[i] !== undefined && hit(set, typed[i]));
+      const inAll = query.filter((_, i) => found(it.all, i)).length;
+      const qs = new Set(it.q);
+      const inQ = query.filter((_, i) => found(qs, i)).length;
+      return { ...it, ok: inAll >= need, score: inAll * 2 + inQ };
+    }).sort((a, b) => b.score - a.score);
+    let shown = 0;
+    scored.forEach((it, i) => {
+      it.el.hidden = !it.ok;
+      list.append(it.el); // best matches first
+      if (it.ok) { shown += 1; it.el.open = i === 0; mark(it, query, typed); } else { it.sum.textContent = it.text; }
+    });
     if (empty) {
-      empty.hidden = !none;
+      empty.hidden = shown > 0;
       document.getElementById('faq-empty-term').textContent = search.value.trim();
     }
-    status.textContent = !words.length || none ? '' : `${shown} ${shown === 1 ? 'answer matches' : 'answers match'}.`;
-  });
+    status.textContent = shown ? `${shown} ${shown === 1 ? 'answer matches' : 'answers match'}, best first.` : '';
+  };
+  search.addEventListener('input', run);
+  search.addEventListener('search', run); // the clear (x) button
   // "Ask this question": copy the search into the form's title and take the visitor there
   document.getElementById('faq-ask')?.addEventListener('click', () => {
     const title = document.getElementById('q-title');

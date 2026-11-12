@@ -387,3 +387,5 @@ body::before {
   background: linear-gradient(var(--bg) 0, var(--bg) 62%, rgba(11, 12, 15, 0));
 }
 .site-header { background: rgba(18, 20, 26, .96); }
+
+.faq summary mark { background: rgba(255, 176, 32, .22); color: var(--amber-2); border-radius: 5px; padding: 0 3px; margin: 0 -3px; }
