@@ -3,6 +3,14 @@
 </p>
 
 <p align="center">
+  <b>A free Windows macro recorder that replays your clicks and keys inside one app in the background while you keep working.</b><br>
+  🌐 Website: <a href="https://ghostmacrorecorder.pages.dev"><b>ghostmacrorecorder.pages.dev</b></a>
+  · <a href="https://ghostmacrorecorder.pages.dev/features.html">Features</a>
+  · <a href="https://ghostmacrorecorder.pages.dev/releases.html">Releases</a>
+  · <a href="https://ghostmacrorecorder.pages.dev/help.html">Help &amp; questions</a>
+</p>
+
+<p align="center">
   <a href="https://ghostmacrorecorder.pages.dev"><img src="https://img.shields.io/badge/Website-ghostmacrorecorder.pages.dev-ffb020?style=for-the-badge&logo=cloudflare&logoColor=white&labelColor=14161a" alt="Website"></a>
 </p>
 
