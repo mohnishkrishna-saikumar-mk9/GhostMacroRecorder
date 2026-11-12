@@ -762,8 +762,11 @@ class MacroRecorderApp(ctk.CTk):
         self.scope_var = ctk.StringVar(
             value="This window only" if self.settings.record_scope == "target" else "Every window"
         )
+        scope_row = ctk.CTkFrame(strip, fg_color="transparent")
+        scope_row.grid(row=1, column=1, columnspan=3, padx=4, pady=(8, 12), sticky="ew")
+        scope_row.grid_columnconfigure(1, weight=1)
         self.seg_scope = ctk.CTkSegmentedButton(
-            strip,
+            scope_row,
             values=["This window only", "Every window"],
             variable=self.scope_var,
             command=self._on_settings_changed,
@@ -771,23 +774,24 @@ class MacroRecorderApp(ctk.CTk):
             corner_radius=8,
             font=self._font(12),
         )
-        self.seg_scope.grid(row=1, column=1, columnspan=3, padx=4, pady=(8, 0), sticky="w")
+        self.seg_scope.grid(row=0, column=0, sticky="w")
         self._style_segmented(self.seg_scope)
 
         self.lbl_target_hint = ctk.CTkLabel(
-            strip,
+            scope_row,
             text="",
             font=self._font(11),
             text_color=C["hint"],
             anchor="w",
             justify="left",
         )
-        self.lbl_target_hint.grid(row=2, column=1, columnspan=3, padx=6, pady=(4, 12), sticky="ew")
-        strip.bind("<Configure>", lambda e: self.lbl_target_hint.configure(
-            wraplength=max(200, int(e.width / self._get_window_scaling()) - 190)), add="+")
+        self.lbl_target_hint.grid(row=0, column=1, padx=(14, 4), sticky="ew")
+        scope_row.bind("<Configure>", lambda e: self.lbl_target_hint.configure(
+            wraplength=max(160, int(e.width / self._get_window_scaling()) - 280)), add="+")
         self._update_target_hint()
 
     def _update_target_hint(self) -> None:
+        self._update_summary()
         t = self._selected_target
         scope_target = self.scope_var.get() == "This window only"
         if t is None:
@@ -913,8 +917,12 @@ class MacroRecorderApp(ctk.CTk):
         self.lbl_empty.place(relx=0.5, rely=0.5, anchor="center")
 
         # --- Settings tabs (fixed, no scrolling) -----------------------------
+        self._right = ctk.CTkFrame(body, fg_color="transparent")
+        self._right.grid(row=0, column=1, padx=(12, 0), sticky="nsew")
+        self._right.grid_columnconfigure(0, weight=1)
+        self._right.grid_rowconfigure(1, weight=1)
         self.tabs = ctk.CTkTabview(
-            body,
+            self._right,
             width=372,
             corner_radius=14,
             fg_color=C["panel"],
@@ -928,7 +936,7 @@ class MacroRecorderApp(ctk.CTk):
             text_color=C["text"],
             command=lambda: self._repaint_segment_text(self.tabs._segmented_button),  # noqa: SLF001
         )
-        self.tabs.grid(row=0, column=1, padx=(12, 0), pady=(0, 0), sticky="nsew")
+        self.tabs.grid(row=0, column=0, sticky="new")
         self.tabs._segmented_button.configure(font=self._font(12))  # noqa: SLF001
         pages = {}
         for name in ("Play", "Repeat", "Record", "Keys", "App"):
@@ -937,6 +945,7 @@ class MacroRecorderApp(ctk.CTk):
             pages[name] = page
         self._repaint_segment_text(self.tabs._segmented_button)  # noqa: SLF001
 
+        self._build_summary_card()
         self._build_play_tab(pages["Play"])
         self._build_repeat_tab(pages["Repeat"])
         self._build_record_tab(pages["Record"])
@@ -944,6 +953,69 @@ class MacroRecorderApp(ctk.CTk):
         self._build_app_tab(pages["App"])
 
     WRAP = 320
+
+    SUMMARY_ROWS = (("macro", "Macro"), ("steps", "Steps"), ("target", "Target"), ("engine", "Plays"),
+                    ("runs", "Runs"))
+
+    def _build_summary_card(self) -> None:
+        """'This run' card: fills the space under the settings with what will actually happen."""
+        card = self._card(self._right)
+        card.grid(row=1, column=0, pady=(10, 0), sticky="nsew")
+        card.grid_columnconfigure(1, weight=1)
+        self.summary_card = card
+        self._summary_shown = True
+        self.after(10, self._place_summary)
+        self._eyebrow(card, "this run").grid(row=0, column=0, columnspan=2, padx=18, pady=(14, 6), sticky="w")
+        self.summary_vals: dict[str, ctk.CTkLabel] = {}
+        for i, (key, label) in enumerate(self.SUMMARY_ROWS, start=1):
+            ctk.CTkLabel(card, text=label, font=self._font(12), text_color=C["hint"], anchor="w").grid(
+                row=i, column=0, padx=(18, 12), pady=3, sticky="nw"
+            )
+            val = ctk.CTkLabel(card, text="—", font=self._font(12, "bold"), text_color=C["text"], anchor="w",
+                               justify="left", wraplength=250)
+            val.grid(row=i, column=1, padx=(0, 16), pady=3, sticky="w")
+            self.summary_vals[key] = val
+        self._right.bind("<Configure>", lambda _e: self._place_summary(), add="+")
+
+    def _place_summary(self) -> None:
+        """Show the summary only when there is real room for it under the settings."""
+        try:
+            scale = self._get_window_scaling()
+            room = (self._right.winfo_height() - self.tabs.winfo_reqheight()) / scale
+            want = room >= 170
+            if want != self._summary_shown:
+                self._summary_shown = want
+                if want:
+                    # Tall window: settings hug their content, "This run" fills the rest
+                    self._right.grid_rowconfigure(0, weight=0)
+                    self._right.grid_rowconfigure(1, weight=1)
+                    self.tabs.grid_configure(sticky="new")
+                    self.summary_card.grid()
+                else:
+                    # Short window: settings card runs to the bottom, lined up with Steps
+                    self.summary_card.grid_remove()
+                    self._right.grid_rowconfigure(1, weight=0)
+                    self._right.grid_rowconfigure(0, weight=1)
+                    self.tabs.grid_configure(sticky="nsew")
+        except Exception:
+            pass
+
+    def _update_summary(self) -> None:
+        if not hasattr(self, "summary_vals"):
+            return
+        v = self.summary_vals
+        events = self.macro.events
+        name = self._macro_file.stem if getattr(self, "_macro_file", None) else (
+            "Untitled (not saved)" if events else "Nothing recorded yet")
+        if events and getattr(self, "_dirty", False) and getattr(self, "_macro_file", None):
+            name += "  •  unsaved changes"
+        v["macro"].configure(text=name)
+        v["steps"].configure(text=f"{len(events):,} steps · {fmt_duration(self.macro.duration)} long" if events else "—")
+        t = self._selected_target
+        v["target"].configure(text=(t.process_name if t else "Any app you click"))
+        mode = "In the background" if self.settings.playback_mode == "background" else "With your real mouse & keys"
+        v["engine"].configure(text=f"{mode} · {self.settings.speed:g}× speed")
+        v["runs"].configure(text=getattr(self, "_run_summary", "—"))
 
     def _setting_label(self, parent, text: str, row: int, sub: str = "", top: int = 10) -> Optional[ctk.CTkLabel]:
         ctk.CTkLabel(parent, text=text, font=self._font(13, "bold"), text_color=C["text"]).grid(
@@ -1375,6 +1447,18 @@ class MacroRecorderApp(ctk.CTk):
         if not hasattr(self, "lbl_estimate"):
             return
         events = self.macro.events
+        if self.settings.run_limit_mode == "time":
+            self._run_summary = f"Keeps repeating for {fmt_duration(self.settings.run_duration)}"
+        elif self.settings.repeat_count == 0:
+            self._run_summary = "Repeats until you press Stop"
+        else:
+            n = self.settings.repeat_count
+            self._run_summary = f"{n} time{'s' if n != 1 else ''}"
+        if events and self.settings.run_limit_mode == "count" and self.settings.repeat_count:
+            n = self.settings.repeat_count
+            total = n * self.macro.duration / max(0.05, self.settings.speed) + (n - 1) * self.settings.loop_delay
+            self._run_summary += f" · about {fmt_duration(total)}"
+        self._update_summary()
         if not events:
             self.lbl_estimate.configure(text="Record a macro to see a run estimate.")
             return
@@ -1918,6 +2002,7 @@ class MacroRecorderApp(ctk.CTk):
         self._dirty = dirty
         name = self._macro_file.stem if self._macro_file else ("Untitled macro" if self.macro.events else "")
         mark = " •" if dirty else ""
+        self._update_summary()
         self.title(f"{name}{mark} — {APP_NAME}" if name else f"{APP_NAME} v{APP_VERSION}")
 
     def _confirm_discard(self, action: str) -> bool:
@@ -2083,12 +2168,18 @@ class MacroRecorderApp(ctk.CTk):
             if have <= 1:
                 self.after(300, self._fit_min_size)
                 return
+            # 1) Size the settings card to its tallest tab (no big empty area underneath)
+            header = self.tabs.winfo_height() - have
+            self.tabs.configure(height=int((header + need) / scale) + 14)
+            self.update_idletasks()
+            # 2) The window may not get shorter than what that card needs
             win_h = self.winfo_height() / scale
-            min_h = int(win_h - (have - need) / scale + 12)
-            min_w = self.MIN_W
-            self.minsize(min_w, min_h)
+            slack = (self._right.winfo_height() - self.tabs.winfo_reqheight()) / scale
+            min_h = int(win_h - slack + 4)
+            self.minsize(self.MIN_W, min_h)
             if win_h < min_h:
                 self.geometry(f"{int(self.winfo_width() / scale)}x{min_h}")
+            self._place_summary()
         except Exception:
             pass
 
